@@ -73,6 +73,8 @@ public class DefaultBrainSeeder implements ApplicationRunner {
         } else if (!localPath.isBlank()) {
             brain.setSourceType("local");
             brain.setLocalPath(localPath);
+        } else {
+            log.warn("No corpus source configured (s3 bucket and local path both blank); sourceType left unset");
         }
         brain.setAnswerProvider(answerProvider);
         brain.setAnswerModel(answerModel);

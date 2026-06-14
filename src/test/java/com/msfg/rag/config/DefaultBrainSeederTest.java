@@ -54,6 +54,7 @@ class DefaultBrainSeederTest {
         assertEquals("s3", def.getSourceType());
         assertEquals("msfg.us", def.getS3Bucket());
         assertEquals("rag-brain/", def.getS3Prefix());
+        assertEquals("us-west-1", def.getS3Region());
         assertEquals("anthropic", def.getAnswerProvider());
         assertEquals("claude-haiku-4-5", def.getAnswerModel());
         assertEquals("openai", def.getUtilityProvider());
@@ -65,5 +66,13 @@ class DefaultBrainSeederTest {
         seeder.run(null);
         seeder.run(null);
         assertEquals(1, brains.count());
+        Brain def = brains.findDefaultBrain().orElseThrow();
+        assertEquals("mortgage", def.getSlug());
+        assertEquals("s3", def.getSourceType());
+        assertEquals("msfg.us", def.getS3Bucket());
+        assertEquals("anthropic", def.getAnswerProvider());
+        assertEquals("claude-haiku-4-5", def.getAnswerModel());
+        assertEquals("openai", def.getUtilityProvider());
+        assertEquals("gpt-4.1-nano", def.getUtilityModel());
     }
 }

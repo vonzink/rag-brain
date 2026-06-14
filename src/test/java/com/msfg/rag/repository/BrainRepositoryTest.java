@@ -62,6 +62,6 @@ class BrainRepositoryTest {
         em.flush();
         Object brainId = em.getEntityManager().createNativeQuery(
                 "SELECT brain_id FROM brain_documents WHERE file_name = 'f.pdf'").getSingleResult();
-        assertEquals(DEFAULT_ID, brainId);
+        assertEquals(DEFAULT_ID, UUID.fromString(brainId.toString()));
     }
 }
