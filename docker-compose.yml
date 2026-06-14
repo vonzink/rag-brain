@@ -4,20 +4,20 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: msfg-rag-postgres
+    container_name: rag-brain-postgres
     environment:
-      POSTGRES_DB: msfg_rag
-      POSTGRES_USER: msfg_rag
+      POSTGRES_DB: rag_brain
+      POSTGRES_USER: rag_brain
       POSTGRES_PASSWORD: local_dev_only   # local only — never reuse in AWS
     ports:
-      - "5433:5432"   # 5433 on host to avoid colliding with any existing local Postgres
+      - "5435:5432"   # 5435 on host to avoid colliding with msfg-rag (5433) and msfg-web-pg (5434)
     volumes:
-      - msfg_rag_pgdata:/var/lib/postgresql/data
+      - rag_brain_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U msfg_rag -d msfg_rag"]
+      test: ["CMD-SHELL", "pg_isready -U rag_brain -d rag_brain"]
       interval: 5s
       timeout: 5s
       retries: 10
 
 volumes:
-  msfg_rag_pgdata:
+  rag_brain_pgdata:
