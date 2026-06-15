@@ -12,7 +12,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import java.util.UUID;
+import com.msfg.rag.TestBrains;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -27,8 +27,6 @@ class AuditLogRepositoryTest {
             DockerImageName.parse("pgvector/pgvector:pg16")
                     .asCompatibleSubstituteFor("postgres"));
 
-    private static final UUID DEFAULT_BRAIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
-
     @Autowired
     AuditLogRepository repository;
 
@@ -37,7 +35,7 @@ class AuditLogRepositoryTest {
         entry.setUserQuestion(question);
         entry.setFallbackUsed(false);
         entry.setHumanEscalationRequired(escalated);
-        entry.setBrainId(DEFAULT_BRAIN);
+        entry.setBrainId(TestBrains.DEFAULT_ID);
         return entry;
     }
 
@@ -45,7 +43,7 @@ class AuditLogRepositoryTest {
     void brainIdRoundTripsThroughPersistence() {
         AuditLog saved = repository.save(log("What is PMI?", false));
         AuditLog reloaded = repository.findById(saved.getId()).orElseThrow();
-        assertEquals(DEFAULT_BRAIN, reloaded.getBrainId(),
+        assertEquals(TestBrains.DEFAULT_ID, reloaded.getBrainId(),
                 "brain_id must persist and reload on the audit record");
     }
 

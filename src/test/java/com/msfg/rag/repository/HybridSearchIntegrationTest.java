@@ -16,6 +16,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import com.msfg.rag.TestBrains;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -34,8 +36,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers
 class HybridSearchIntegrationTest {
-
-    private static final UUID DEFAULT_BRAIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Container
     @ServiceConnection
@@ -86,7 +86,7 @@ class HybridSearchIntegrationTest {
 
     @Test
     void keywordSearchFindsMatchingChunk() {
-        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("gift funds", 10, DEFAULT_BRAIN);
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("gift funds", 10, TestBrains.DEFAULT_ID);
 
         assertFalse(results.isEmpty());
         assertTrue(results.getFirst().getContent().contains("Gift funds may be used"));
@@ -94,7 +94,7 @@ class HybridSearchIntegrationTest {
 
     @Test
     void keywordSearchExcludesInactiveAndExpiredDocuments() {
-        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("gift funds", 10, DEFAULT_BRAIN);
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("gift funds", 10, TestBrains.DEFAULT_ID);
 
         assertEquals(1, results.size(), "Only the active, unexpired document should match");
         assertEquals("Fannie Mae Selling Guide", results.getFirst().getSourceName());
@@ -104,7 +104,7 @@ class HybridSearchIntegrationTest {
     void vectorSearchRanksClosestEmbeddingFirst() {
         // Query with the exact embedding of chunk 0 -> cosine similarity 1.0.
         String query = EmbeddingService.toVectorLiteral(unitVector(0));
-        List<ChunkSearchResult> results = chunkRepository.searchByVector(query, 10, DEFAULT_BRAIN);
+        List<ChunkSearchResult> results = chunkRepository.searchByVector(query, 10, TestBrains.DEFAULT_ID);
 
         assertFalse(results.isEmpty());
         assertTrue(results.getFirst().getContent().contains("Gift funds may be used"));
@@ -114,7 +114,7 @@ class HybridSearchIntegrationTest {
     @Test
     void vectorSearchExcludesInactiveAndExpiredDocuments() {
         String query = EmbeddingService.toVectorLiteral(unitVector(0));
-        List<ChunkSearchResult> results = chunkRepository.searchByVector(query, 10, DEFAULT_BRAIN);
+        List<ChunkSearchResult> results = chunkRepository.searchByVector(query, 10, TestBrains.DEFAULT_ID);
 
         assertTrue(results.stream()
                 .allMatch(r -> r.getSourceName().equals("Fannie Mae Selling Guide")));
@@ -122,7 +122,7 @@ class HybridSearchIntegrationTest {
 
     @Test
     void keywordSearchReturnsCitationMetadata() {
-        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("overtime income", 10, DEFAULT_BRAIN);
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("overtime income", 10, TestBrains.DEFAULT_ID);
 
         assertFalse(results.isEmpty());
         ChunkSearchResult hit = results.getFirst();
@@ -168,7 +168,7 @@ class HybridSearchIntegrationTest {
 
         // Keyword search scoped to the DEFAULT brain never returns the other
         // brain's chunk.
-        List<ChunkSearchResult> defaultHits = chunkRepository.searchByKeyword("gift funds", 10, DEFAULT_BRAIN);
+        List<ChunkSearchResult> defaultHits = chunkRepository.searchByKeyword("gift funds", 10, TestBrains.DEFAULT_ID);
         assertTrue(defaultHits.stream().noneMatch(h -> h.getChunkId().equals(otherChunkId)),
                 "default-brain search must not leak the other-brain chunk");
         assertEquals("Fannie Mae Selling Guide", defaultHits.getFirst().getSourceName());
@@ -179,7 +179,7 @@ class HybridSearchIntegrationTest {
     private MortgageDocument saveDocument(String sourceName, boolean active,
                                           LocalDate expirationDate) {
         MortgageDocument doc = new MortgageDocument();
-        doc.setBrainId(DEFAULT_BRAIN);
+        doc.setBrainId(TestBrains.DEFAULT_ID);
         doc.setTitle(sourceName + " 2026");
         doc.setSourceName(sourceName);
         doc.setSourceType(SourceType.AGENCY_GUIDELINE);
@@ -192,7 +192,7 @@ class HybridSearchIntegrationTest {
 
     private void saveChunk(MortgageDocument doc, int index, String content, float[] embedding) {
         DocumentChunk chunk = new DocumentChunk();
-        chunk.setBrainId(DEFAULT_BRAIN);
+        chunk.setBrainId(TestBrains.DEFAULT_ID);
         chunk.setDocument(doc);
         chunk.setChunkIndex(index);
         chunk.setContent(content);

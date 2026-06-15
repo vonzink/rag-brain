@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.msfg.rag.TestBrains;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -49,8 +51,6 @@ import static org.mockito.Mockito.when;
  * never the model's raw refusal text decorated with backfilled citations.
  */
 class AskServiceTest {
-
-    private static final UUID DEFAULT_BRAIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     private RetrievedChunk chunk(String sourceName, String documentName,
                                  String section, Integer pageNumber, LocalDate effectiveDate) {
@@ -133,7 +133,7 @@ class AskServiceTest {
     @EnumSource(value = QuestionCategory.class,
             names = {"LEGAL", "TAX", "LIVE_RATES", "FRAUD", "ELIGIBILITY"})
     void categoryRefusalsReturnTheMatchingCannedAnswer(QuestionCategory category) {
-        AskResponse response = askServiceClassifying(category).ask(pmiQuestion(), DEFAULT_BRAIN);
+        AskResponse response = askServiceClassifying(category).ask(pmiQuestion(), TestBrains.DEFAULT_ID);
         var canned = TestPacks.msfg().guardrails().cannedAnswers();
         String expected = switch (category) {
             case LEGAL -> canned.legal();
@@ -161,7 +161,7 @@ class AskServiceTest {
         AskResponse response = askServiceReturning(refusalJson, List.of(
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1)),
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-2", 2, LocalDate.of(2026, 1, 1))))
-                .ask(pmiQuestion(), DEFAULT_BRAIN);
+                .ask(pmiQuestion(), TestBrains.DEFAULT_ID);
 
         assertTrue(response.humanEscalationRequired(), "a refused answer must escalate");
         // The bug: backfilled citations were attached to a refusal, producing a
@@ -189,7 +189,7 @@ class AskServiceTest {
         AskResponse response = askServiceReturning(groundedJson, List.of(
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1)),
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-2", 2, LocalDate.of(2026, 1, 1))))
-                .ask(pmiQuestion(), DEFAULT_BRAIN);
+                .ask(pmiQuestion(), TestBrains.DEFAULT_ID);
 
         assertFalse(response.humanEscalationRequired(), "a grounded answer must not escalate");
         assertEquals(2, response.citations().size(), "omitted citations must be backfilled");

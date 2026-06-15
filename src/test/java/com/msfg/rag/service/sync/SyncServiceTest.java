@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.msfg.rag.TestBrains;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -19,8 +21,6 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class SyncServiceTest {
-
-    private static final UUID DEFAULT_BRAIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     private CorpusSource corpusSource;
     private DocumentIngestionService ingestionService;
@@ -57,7 +57,7 @@ class SyncServiceTest {
         old.setActive(true);
         when(documentRepository.findAll()).thenReturn(List.of(old));
 
-        SyncReport report = syncService.sync(true, DEFAULT_BRAIN);
+        SyncReport report = syncService.sync(true, TestBrains.DEFAULT_ID);
 
         assertTrue(report.dryRun());
         report.results().forEach(r -> assertFalse(r.executed()));
@@ -97,7 +97,7 @@ class SyncServiceTest {
         when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(saved);
 
-        SyncReport report = syncService.sync(false, DEFAULT_BRAIN);
+        SyncReport report = syncService.sync(false, TestBrains.DEFAULT_ID);
 
         verify(ingestionService).ingest(
                 eq("policy.pdf"),
@@ -108,7 +108,7 @@ class SyncServiceTest {
                 isNull(),
                 eq(LocalDate.of(2024, 1, 1)),
                 isNull(),
-                eq(DEFAULT_BRAIN));
+                eq(TestBrains.DEFAULT_ID));
 
         assertEquals(1, report.results().size());
         assertTrue(report.results().get(0).succeeded());
@@ -139,7 +139,7 @@ class SyncServiceTest {
                 .thenReturn(replacement);
         when(documentRepository.findByActiveTrue()).thenReturn(List.of(stale));
 
-        SyncReport report = syncService.sync(false, DEFAULT_BRAIN);
+        SyncReport report = syncService.sync(false, TestBrains.DEFAULT_ID);
 
         InOrder order = inOrder(ingestionService, documentRepository);
         order.verify(ingestionService).ingest(any(), any(), any(), any(), any(), any(), any(), any(), any());
@@ -179,7 +179,7 @@ class SyncServiceTest {
                 eq("new.pdf"), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(newDoc);
 
-        SyncReport report = syncService.sync(false, DEFAULT_BRAIN);
+        SyncReport report = syncService.sync(false, TestBrains.DEFAULT_ID);
 
         // findByActiveTrue never called; stale never saved
         verify(documentRepository, never()).findByActiveTrue();
@@ -221,7 +221,7 @@ class SyncServiceTest {
         when(documentRepository.findById(inactive.getId())).thenReturn(Optional.of(inactive));
         when(documentRepository.findById(active.getId())).thenReturn(Optional.of(active));
 
-        syncService.sync(false, DEFAULT_BRAIN);
+        syncService.sync(false, TestBrains.DEFAULT_ID);
 
         assertTrue(inactive.isActive(), "REACTIVATE must set active=true");
         assertFalse(active.isActive(), "DEACTIVATE must set active=false");
@@ -258,7 +258,7 @@ class SyncServiceTest {
                 .thenReturn(replacement);
         when(documentRepository.findByActiveTrue()).thenReturn(List.of(stale1, stale2));
 
-        syncService.sync(false, DEFAULT_BRAIN);
+        syncService.sync(false, TestBrains.DEFAULT_ID);
 
         assertFalse(stale1.isActive(), "stale1 must be deactivated");
         assertFalse(stale2.isActive(), "stale2 must be deactivated");

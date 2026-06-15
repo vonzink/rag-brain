@@ -13,6 +13,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import com.msfg.rag.TestBrains;
+
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,8 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers
 class BrainRepositoryTest {
-
-    private static final UUID DEFAULT_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Container
     @ServiceConnection
@@ -40,7 +40,7 @@ class BrainRepositoryTest {
     @Test
     void migrationSeedsExactlyOneDefaultBrain() {
         Brain def = brains.findDefaultBrain().orElseThrow();
-        assertEquals(DEFAULT_ID, def.getId());
+        assertEquals(TestBrains.DEFAULT_ID, def.getId());
         assertEquals("mortgage", def.getSlug());
         assertEquals("packs/msfg-mortgage", def.getPackRef());
         assertTrue(def.isDefault());
@@ -62,6 +62,6 @@ class BrainRepositoryTest {
         em.flush();
         Object brainId = em.getEntityManager().createNativeQuery(
                 "SELECT brain_id FROM brain_documents WHERE file_name = 'f.pdf'").getSingleResult();
-        assertEquals(DEFAULT_ID, UUID.fromString(brainId.toString()));
+        assertEquals(TestBrains.DEFAULT_ID, UUID.fromString(brainId.toString()));
     }
 }
