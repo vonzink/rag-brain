@@ -65,6 +65,8 @@ brain:
       base-url: ${LOCAL_LLM_BASE_URL:}
       api-key: ${LOCAL_LLM_API_KEY:}
       model: ${LOCAL_LLM_MODEL:}
+  local-llm:
+    allowed-hosts: ${LOCAL_LLM_ALLOWED_HOSTS:}
   corpus:
     bucket: ${S3_BUCKET:msfg.us}
     prefix: ${S3_PREFIX:rag-brain/}
