@@ -50,6 +50,8 @@ import static org.mockito.Mockito.when;
  */
 class AskServiceTest {
 
+    private static final UUID DEFAULT_BRAIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
     private RetrievedChunk chunk(String sourceName, String documentName,
                                  String section, Integer pageNumber, LocalDate effectiveDate) {
         return new RetrievedChunk(
@@ -69,7 +71,7 @@ class AskServiceTest {
         when(classifier.classify(anyString())).thenReturn(QuestionCategory.EDUCATIONAL);
 
         RetrievalService retrieval = mock(RetrievalService.class);
-        when(retrieval.retrieve(anyString()))
+        when(retrieval.retrieve(anyString(), any()))
                 .thenReturn(new RetrievalResult(chunks, 1.0, true));
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
@@ -101,7 +103,7 @@ class AskServiceTest {
         when(classifier.classify(anyString())).thenReturn(category);
 
         RetrievalService retrieval = mock(RetrievalService.class);
-        when(retrieval.retrieve(anyString())).thenReturn(RetrievalResult.empty());
+        when(retrieval.retrieve(anyString(), any())).thenReturn(RetrievalResult.empty());
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
         when(promptBuilder.build(anyString(), anyList())).thenReturn("PROMPT");
@@ -131,7 +133,7 @@ class AskServiceTest {
     @EnumSource(value = QuestionCategory.class,
             names = {"LEGAL", "TAX", "LIVE_RATES", "FRAUD", "ELIGIBILITY"})
     void categoryRefusalsReturnTheMatchingCannedAnswer(QuestionCategory category) {
-        AskResponse response = askServiceClassifying(category).ask(pmiQuestion());
+        AskResponse response = askServiceClassifying(category).ask(pmiQuestion(), DEFAULT_BRAIN);
         var canned = TestPacks.msfg().guardrails().cannedAnswers();
         String expected = switch (category) {
             case LEGAL -> canned.legal();
@@ -159,7 +161,7 @@ class AskServiceTest {
         AskResponse response = askServiceReturning(refusalJson, List.of(
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1)),
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-2", 2, LocalDate.of(2026, 1, 1))))
-                .ask(pmiQuestion());
+                .ask(pmiQuestion(), DEFAULT_BRAIN);
 
         assertTrue(response.humanEscalationRequired(), "a refused answer must escalate");
         // The bug: backfilled citations were attached to a refusal, producing a
@@ -187,7 +189,7 @@ class AskServiceTest {
         AskResponse response = askServiceReturning(groundedJson, List.of(
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1)),
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-2", 2, LocalDate.of(2026, 1, 1))))
-                .ask(pmiQuestion());
+                .ask(pmiQuestion(), DEFAULT_BRAIN);
 
         assertFalse(response.humanEscalationRequired(), "a grounded answer must not escalate");
         assertEquals(2, response.citations().size(), "omitted citations must be backfilled");

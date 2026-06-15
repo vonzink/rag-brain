@@ -4,6 +4,7 @@ import com.msfg.rag.domain.DocumentChunk;
 import com.msfg.rag.domain.MortgageDocument;
 import com.msfg.rag.domain.SourceType;
 import com.msfg.rag.service.ingestion.EmbeddingService;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import org.testcontainers.utility.DockerImageName;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -33,6 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Testcontainers
 class HybridSearchIntegrationTest {
 
+    private static final UUID DEFAULT_BRAIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
     @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
@@ -44,6 +48,9 @@ class HybridSearchIntegrationTest {
 
     @Autowired
     private DocumentChunkRepository chunkRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private MortgageDocument activeDoc;
 
@@ -79,7 +86,7 @@ class HybridSearchIntegrationTest {
 
     @Test
     void keywordSearchFindsMatchingChunk() {
-        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("gift funds", 10);
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("gift funds", 10, DEFAULT_BRAIN);
 
         assertFalse(results.isEmpty());
         assertTrue(results.getFirst().getContent().contains("Gift funds may be used"));
@@ -87,7 +94,7 @@ class HybridSearchIntegrationTest {
 
     @Test
     void keywordSearchExcludesInactiveAndExpiredDocuments() {
-        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("gift funds", 10);
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("gift funds", 10, DEFAULT_BRAIN);
 
         assertEquals(1, results.size(), "Only the active, unexpired document should match");
         assertEquals("Fannie Mae Selling Guide", results.getFirst().getSourceName());
@@ -97,7 +104,7 @@ class HybridSearchIntegrationTest {
     void vectorSearchRanksClosestEmbeddingFirst() {
         // Query with the exact embedding of chunk 0 -> cosine similarity 1.0.
         String query = EmbeddingService.toVectorLiteral(unitVector(0));
-        List<ChunkSearchResult> results = chunkRepository.searchByVector(query, 10);
+        List<ChunkSearchResult> results = chunkRepository.searchByVector(query, 10, DEFAULT_BRAIN);
 
         assertFalse(results.isEmpty());
         assertTrue(results.getFirst().getContent().contains("Gift funds may be used"));
@@ -107,7 +114,7 @@ class HybridSearchIntegrationTest {
     @Test
     void vectorSearchExcludesInactiveAndExpiredDocuments() {
         String query = EmbeddingService.toVectorLiteral(unitVector(0));
-        List<ChunkSearchResult> results = chunkRepository.searchByVector(query, 10);
+        List<ChunkSearchResult> results = chunkRepository.searchByVector(query, 10, DEFAULT_BRAIN);
 
         assertTrue(results.stream()
                 .allMatch(r -> r.getSourceName().equals("Fannie Mae Selling Guide")));
@@ -115,13 +122,56 @@ class HybridSearchIntegrationTest {
 
     @Test
     void keywordSearchReturnsCitationMetadata() {
-        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("overtime income", 10);
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("overtime income", 10, DEFAULT_BRAIN);
 
         assertFalse(results.isEmpty());
         ChunkSearchResult hit = results.getFirst();
         assertEquals("Fannie Mae Selling Guide", hit.getSourceName());
         assertEquals("selling-guide.pdf", hit.getDocumentName());
         assertTrue(hit.getMetadataJson().contains("B3-3.1-01"));
+    }
+
+    @Test
+    void searchesAreIsolatedByBrain() {
+        // Register a second brain and insert a doc + chunk under it via native
+        // SQL (the brain_id field is not yet JPA-mapped in this task). The "gift
+        // funds" content matches the default-brain chunk inserted in setUp().
+        UUID otherBrain = UUID.fromString("00000000-0000-0000-0000-0000000000ff");
+        entityManager.createNativeQuery("""
+                INSERT INTO brains (id, slug, display_name, is_default, is_active)
+                VALUES (:id, 'other', 'Other Brain', FALSE, TRUE)
+                """).setParameter("id", otherBrain).executeUpdate();
+        UUID otherDocId = UUID.randomUUID();
+        entityManager.createNativeQuery("""
+                INSERT INTO brain_documents
+                    (id, title, source_name, source_type, file_name, effective_date, is_active, brain_id)
+                VALUES (:id, 'Other Guide', 'Other Brain Source', 'AGENCY_GUIDELINE',
+                        'other.pdf', CURRENT_DATE, TRUE, :brain)
+                """).setParameter("id", otherDocId).setParameter("brain", otherBrain).executeUpdate();
+        UUID otherChunkId = UUID.randomUUID();
+        entityManager.createNativeQuery("""
+                INSERT INTO brain_document_chunks
+                    (id, document_id, chunk_index, content, token_count, brain_id)
+                VALUES (:id, :docId, 0,
+                        'Gift funds policy specific to the other brain.', 40, :brain)
+                """).setParameter("id", otherChunkId).setParameter("docId", otherDocId)
+                .setParameter("brain", otherBrain).executeUpdate();
+        entityManager.flush();
+        entityManager.clear();
+
+        // Keyword search scoped to the OTHER brain returns ONLY its chunk, never
+        // the default-brain "gift funds" chunk.
+        List<ChunkSearchResult> otherHits = chunkRepository.searchByKeyword("gift funds", 10, otherBrain);
+        assertEquals(1, otherHits.size(), "other-brain search must see only the other-brain chunk");
+        assertEquals(otherChunkId, otherHits.getFirst().getChunkId());
+        assertEquals("Other Brain Source", otherHits.getFirst().getSourceName());
+
+        // Keyword search scoped to the DEFAULT brain never returns the other
+        // brain's chunk.
+        List<ChunkSearchResult> defaultHits = chunkRepository.searchByKeyword("gift funds", 10, DEFAULT_BRAIN);
+        assertTrue(defaultHits.stream().noneMatch(h -> h.getChunkId().equals(otherChunkId)),
+                "default-brain search must not leak the other-brain chunk");
+        assertEquals("Fannie Mae Selling Guide", defaultHits.getFirst().getSourceName());
     }
 
     // ------------------------------------------------------------------

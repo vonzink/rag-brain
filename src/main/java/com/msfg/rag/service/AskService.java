@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * End-to-end question pipeline:
@@ -81,7 +82,7 @@ public class AskService {
     }
 
     @Transactional
-    public AskResponse ask(AskRequest request) {
+    public AskResponse ask(AskRequest request, UUID brainId) {
         Conversation conversation = resolveConversation(request);
         saveMessage(conversation, Message.ROLE_USER, request.question(), null);
 
@@ -94,7 +95,7 @@ public class AskService {
         }
 
         // 1. Retrieve approved source context.
-        RetrievalResult retrieval = retrievalService.retrieve(request.question());
+        RetrievalResult retrieval = retrievalService.retrieve(request.question(), brainId);
 
         // 2. Refuse early when there is no reliable source material.
         if (!retrieval.sufficientEvidence()) {

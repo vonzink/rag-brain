@@ -4,6 +4,7 @@ import com.msfg.rag.domain.MortgageDocument;
 import com.msfg.rag.domain.SourceType;
 import com.msfg.rag.dto.DocumentDto;
 import com.msfg.rag.repository.MortgageDocumentRepository;
+import com.msfg.rag.service.BrainResolver;
 import com.msfg.rag.service.ingestion.DocumentIngestionService;
 import com.msfg.rag.service.retrieval.RetrievalResult;
 import com.msfg.rag.service.retrieval.RetrievalService;
@@ -42,15 +43,18 @@ public class DocumentAdminController {
     private final MortgageDocumentRepository documentRepository;
     private final RetrievalService retrievalService;
     private final SyncService syncService;
+    private final BrainResolver brainResolver;
 
     public DocumentAdminController(DocumentIngestionService ingestionService,
                                    MortgageDocumentRepository documentRepository,
                                    RetrievalService retrievalService,
-                                   SyncService syncService) {
+                                   SyncService syncService,
+                                   BrainResolver brainResolver) {
         this.ingestionService = ingestionService;
         this.documentRepository = documentRepository;
         this.retrievalService = retrievalService;
         this.syncService = syncService;
+        this.brainResolver = brainResolver;
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -115,8 +119,9 @@ public class DocumentAdminController {
      * question, with scores, before any AI answer is generated.
      */
     @GetMapping("/test-retrieval")
-    public RetrievalResult testRetrieval(@RequestParam("question") String question) {
-        return retrievalService.retrieve(question);
+    public RetrievalResult testRetrieval(@RequestParam("question") String question,
+                                         @RequestParam(value = "brain", required = false) String brain) {
+        return retrievalService.retrieve(question, brainResolver.resolve(brain).getId());
     }
 
     private ResponseEntity<DocumentDto> setActive(UUID id, boolean active) {

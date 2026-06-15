@@ -75,7 +75,7 @@ public class RetrievalService {
     }
 
     @Transactional(readOnly = true)
-    public RetrievalResult retrieve(String question) {
+    public RetrievalResult retrieve(String question, UUID brainId) {
         if (question == null || question.isBlank()) {
             return RetrievalResult.empty();
         }
@@ -98,9 +98,9 @@ public class RetrievalService {
         float[] questionEmbedding = embeddingService.embed(expandedQuestion);
         String vectorLiteral = EmbeddingService.toVectorLiteral(questionEmbedding);
 
-        List<ChunkSearchResult> vectorHits = chunkRepository.searchByVector(vectorLiteral, candidatePool);
+        List<ChunkSearchResult> vectorHits = chunkRepository.searchByVector(vectorLiteral, candidatePool, brainId);
         List<ChunkSearchResult> keywordHits = chunkRepository.searchByKeyword(
-                toOrQuery(expandedQuestion), candidatePool);
+                toOrQuery(expandedQuestion), candidatePool, brainId);
 
         Map<UUID, MutableHit> merged = new HashMap<>();
         for (ChunkSearchResult hit : vectorHits) {

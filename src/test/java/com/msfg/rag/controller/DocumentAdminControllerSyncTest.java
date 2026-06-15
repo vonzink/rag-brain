@@ -1,6 +1,7 @@
 package com.msfg.rag.controller;
 
 import com.msfg.rag.repository.MortgageDocumentRepository;
+import com.msfg.rag.service.BrainResolver;
 import com.msfg.rag.service.ingestion.DocumentIngestionService;
 import com.msfg.rag.service.retrieval.RetrievalService;
 import com.msfg.rag.service.sync.SyncReport;
@@ -22,7 +23,8 @@ class DocumentAdminControllerSyncTest {
             mock(DocumentIngestionService.class),
             mock(MortgageDocumentRepository.class),
             mock(RetrievalService.class),
-            syncService);
+            syncService,
+            mock(BrainResolver.class));
 
     @Test
     void syncPassesDryRunFlagThrough() {

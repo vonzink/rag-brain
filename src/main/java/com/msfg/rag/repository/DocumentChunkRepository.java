@@ -39,12 +39,14 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
             WHERE d.is_active = TRUE
               AND (d.effective_date IS NULL OR d.effective_date <= CURRENT_DATE)
               AND (d.expiration_date IS NULL OR d.expiration_date >= CURRENT_DATE)
+              AND c.brain_id = :brainId
               AND c.embedding IS NOT NULL
             ORDER BY c.embedding <=> CAST(:embedding AS vector)
             LIMIT :limit
             """, nativeQuery = true)
     List<ChunkSearchResult> searchByVector(@Param("embedding") String embedding,
-                                           @Param("limit") int limit);
+                                           @Param("limit") int limit,
+                                           @Param("brainId") UUID brainId);
 
     /**
      * Full-text keyword search using websearch syntax (handles quoted phrases,
@@ -67,10 +69,12 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
             WHERE d.is_active = TRUE
               AND (d.effective_date IS NULL OR d.effective_date <= CURRENT_DATE)
               AND (d.expiration_date IS NULL OR d.expiration_date >= CURRENT_DATE)
+              AND c.brain_id = :brainId
               AND c.content_tsv @@ websearch_to_tsquery('english', :query)
             ORDER BY score DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<ChunkSearchResult> searchByKeyword(@Param("query") String query,
-                                            @Param("limit") int limit);
+                                            @Param("limit") int limit,
+                                            @Param("brainId") UUID brainId);
 }
