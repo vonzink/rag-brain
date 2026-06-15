@@ -222,4 +222,39 @@ class BrainAdminControllerTest {
         when(brains.findById(id)).thenReturn(Optional.of(brain(id, "lending", false, false)));
         assertThrows(IllegalArgumentException.class, () -> controller.activate(id));
     }
+
+    // ---- Task 5: sync ----
+
+    @Test
+    void syncPassesDryRunThroughByBrainId() {
+        UUID id = UUID.randomUUID();
+        when(brains.findById(id)).thenReturn(Optional.of(brain(id, "lending", false, true)));
+        com.msfg.rag.service.sync.SyncReport report =
+                new com.msfg.rag.service.sync.SyncReport(true, java.util.Map.of("skip", 1), java.util.List.of());
+        when(syncService.sync(org.mockito.ArgumentMatchers.eq(true), org.mockito.ArgumentMatchers.eq(id)))
+                .thenReturn(report);
+
+        assertEquals(report, controller.sync(id, true));
+        org.mockito.Mockito.verify(syncService)
+                .sync(org.mockito.ArgumentMatchers.eq(true), org.mockito.ArgumentMatchers.eq(id));
+    }
+
+    @Test
+    void syncDefaultsToExecute() {
+        UUID id = UUID.randomUUID();
+        when(brains.findById(id)).thenReturn(Optional.of(brain(id, "lending", false, true)));
+        com.msfg.rag.service.sync.SyncReport report =
+                new com.msfg.rag.service.sync.SyncReport(false, java.util.Map.of(), java.util.List.of());
+        when(syncService.sync(org.mockito.ArgumentMatchers.eq(false), org.mockito.ArgumentMatchers.eq(id)))
+                .thenReturn(report);
+
+        assertEquals(report, controller.sync(id, false));
+    }
+
+    @Test
+    void syncRejectsUnknownBrain() {
+        UUID id = UUID.randomUUID();
+        when(brains.findById(id)).thenReturn(Optional.empty());
+        assertThrows(IllegalArgumentException.class, () -> controller.sync(id, false));
+    }
 }

@@ -6,12 +6,14 @@ import com.msfg.rag.pack.DomainPackLoader;
 import com.msfg.rag.pack.DomainPackRegistry;
 import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.service.ai.ModelRouterService;
+import com.msfg.rag.service.sync.SyncReport;
 import com.msfg.rag.service.sync.SyncService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -166,6 +168,15 @@ public class BrainAdminController {
         });
         target.setDefault(true);
         return BrainDto.from(brains.save(target));
+    }
+
+    @PostMapping("/{id}/sync")
+    public SyncReport sync(@PathVariable UUID id,
+                           @RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun) {
+        if (brains.findById(id).isEmpty()) {
+            throw new IllegalArgumentException("Unknown brain: " + id);
+        }
+        return syncService.sync(dryRun, id);
     }
 
     /** Loads the pack at packRef and asserts its slug equals the brain slug — clean 400 on any problem. */
