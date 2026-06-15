@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static com.msfg.rag.TestBrains.DEFAULT_ID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -215,7 +216,7 @@ class MsfgGoldenPackTest {
         when(rulesService.effectiveHard()).thenReturn(PACK.hardRules());
         when(rulesService.effectiveGuidance()).thenReturn(PACK.guidance());
 
-        String assembled = new PromptBuilderService(PACK, rulesService).build("Q", List.of());
+        String assembled = new PromptBuilderService(TestPacks.registry(), rulesService).build("Q", List.of(), DEFAULT_ID);
 
         String expected = PACK.promptTemplate().formatted(
                 PACK.hardRules(),

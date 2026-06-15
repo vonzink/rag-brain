@@ -10,6 +10,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static com.msfg.rag.TestBrains.DEFAULT_ID;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -19,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class AnswerValidationServiceTest {
 
-    private final AnswerValidationService validator = new AnswerValidationService(TestPacks.msfg());
+    private final AnswerValidationService validator = new AnswerValidationService(TestPacks.registry());
 
     private static final List<CitationDto> CITATIONS = List.of(
             new CitationDto("Fannie Mae Selling Guide", "selling-guide.pdf",
@@ -33,7 +34,7 @@ class AnswerValidationServiceTest {
     void acceptsCompliantAnswer() {
         var result = validator.validate(answerWith(
                 "Overtime income may generally be used if it has a two-year history, "
-                + "subject to full loan review."), true);
+                + "subject to full loan review."), true, DEFAULT_ID);
         assertTrue(result.valid());
     }
 
@@ -46,14 +47,14 @@ class AnswerValidationServiceTest {
             "Don't worry, this will close on time."
     })
     void rejectsProhibitedPhrases(String text) {
-        var result = validator.validate(answerWith(text), true);
+        var result = validator.validate(answerWith(text), true, DEFAULT_ID);
         assertFalse(result.valid(), "Should reject: " + text);
     }
 
     @Test
     void rejectsEligibleOutsideQuote() {
         var result = validator.validate(answerWith(
-                "You are eligible for FHA financing."), true);
+                "You are eligible for FHA financing."), true, DEFAULT_ID);
         assertFalse(result.valid());
     }
 
@@ -61,26 +62,26 @@ class AnswerValidationServiceTest {
     void allowsEligibleInsideDirectQuote() {
         var result = validator.validate(answerWith(
                 "The guideline states: \"You are eligible if the property is your "
-                + "primary residence.\" A loan officer should verify your scenario."), true);
+                + "primary residence.\" A loan officer should verify your scenario."), true, DEFAULT_ID);
         assertTrue(result.valid());
     }
 
     @Test
     void rejectsMissingCitationsWhenEvidenceWasSufficient() {
         var answer = new ModelAnswer("PMI is mortgage insurance.", List.of(), 0.9, false, "d");
-        assertFalse(validator.validate(answer, true).valid());
+        assertFalse(validator.validate(answer, true, DEFAULT_ID).valid());
     }
 
     @Test
     void rejectsEmptyAnswer() {
         var answer = new ModelAnswer("  ", CITATIONS, 0.9, false, "d");
-        assertFalse(validator.validate(answer, true).valid());
+        assertFalse(validator.validate(answer, true, DEFAULT_ID).valid());
     }
 
     @ParameterizedTest
     @MethodSource("allPackPhrases")
     void rejectsEveryPackProhibitedPhrase(String phrase) {
-        var result = validator.validate(answerWith("Note that " + phrase + " in this case."), true);
+        var result = validator.validate(answerWith("Note that " + phrase + " in this case."), true, DEFAULT_ID);
         assertFalse(result.valid(), "pack phrase must be rejected: " + phrase);
     }
 

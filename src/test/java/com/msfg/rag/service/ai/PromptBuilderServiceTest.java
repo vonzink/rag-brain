@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import static com.msfg.rag.TestBrains.DEFAULT_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -24,7 +25,7 @@ class PromptBuilderServiceTest {
         rulesService = mock(RulesService.class);
         when(rulesService.effectiveHard()).thenReturn(TestPacks.msfg().hardRules());
         when(rulesService.effectiveGuidance()).thenReturn(TestPacks.msfg().guidance());
-        promptBuilder = new PromptBuilderService(TestPacks.msfg(), rulesService);
+        promptBuilder = new PromptBuilderService(TestPacks.registry(), rulesService);
     }
 
     private RetrievedChunk sampleChunk() {
@@ -39,7 +40,7 @@ class PromptBuilderServiceTest {
 
     @Test
     void includesQuestionAndContext() {
-        String prompt = promptBuilder.build("Can I use overtime income?", List.of(sampleChunk()));
+        String prompt = promptBuilder.build("Can I use overtime income?", List.of(sampleChunk()), DEFAULT_ID);
         assertTrue(prompt.contains("Can I use overtime income?"));
         assertTrue(prompt.contains("Overtime income may be used"));
         assertTrue(prompt.contains("B3-3.1-01"));
@@ -48,7 +49,7 @@ class PromptBuilderServiceTest {
 
     @Test
     void includesComplianceRules() {
-        String prompt = promptBuilder.build("What is PMI?", List.of(sampleChunk()));
+        String prompt = promptBuilder.build("What is PMI?", List.of(sampleChunk()), DEFAULT_ID);
         assertTrue(prompt.contains("Do not answer from general knowledge"));
         assertTrue(prompt.contains("Do not invent mortgage guidelines"));
         assertTrue(prompt.contains("Include citations"));
@@ -56,25 +57,25 @@ class PromptBuilderServiceTest {
 
     @Test
     void requiresNonEmptyCitationsWhenSourcesProvided() {
-        String prompt = promptBuilder.build("What is PMI?", List.of(sampleChunk()));
+        String prompt = promptBuilder.build("What is PMI?", List.of(sampleChunk()), DEFAULT_ID);
         assertTrue(prompt.contains("must contain at least one entry"));
     }
 
     @Test
     void includesDisclaimer() {
-        String prompt = promptBuilder.build("What is DTI?", List.of(sampleChunk()));
+        String prompt = promptBuilder.build("What is DTI?", List.of(sampleChunk()), DEFAULT_ID);
         assertTrue(prompt.contains(TestPacks.msfg().disclaimer()));
     }
 
     @Test
     void handlesEmptyContext() {
-        String prompt = promptBuilder.build("What is escrow?", List.of());
+        String prompt = promptBuilder.build("What is escrow?", List.of(), DEFAULT_ID);
         assertTrue(prompt.contains("(no source context found)"));
     }
 
     @Test
     void composesTemplateSlotsInOrder() {
-        String prompt = promptBuilder.build("What is escrow?", List.of());
+        String prompt = promptBuilder.build("What is escrow?", List.of(), DEFAULT_ID);
         String expected = TestPacks.msfg().promptTemplate().formatted(
                 TestPacks.msfg().hardRules(),
                 TestPacks.msfg().guidance(),
@@ -87,7 +88,7 @@ class PromptBuilderServiceTest {
     @Test
     void customHardRulesReachThePrompt() {
         when(rulesService.effectiveHard()).thenReturn("ONLY ANSWER IN HAIKU.");
-        String prompt = promptBuilder.build("What is PMI?", List.of());
+        String prompt = promptBuilder.build("What is PMI?", List.of(), DEFAULT_ID);
         assertTrue(prompt.contains("ONLY ANSWER IN HAIKU."));
         assertTrue(prompt.contains("What is PMI?"));
     }

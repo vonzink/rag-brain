@@ -90,7 +90,7 @@ public class AskService {
         //    here before any embedding or LLM spend.
         QuestionCategory category = questionClassifierService.classify(request.question(), brainId);
         if (category != QuestionCategory.EDUCATIONAL) {
-            return refuse(conversation, request, RetrievalResult.empty(),
+            return refuse(conversation, request, brainId, RetrievalResult.empty(),
                     categoryAnswer(category, canned), null, "classified as " + category);
         }
 
@@ -99,19 +99,19 @@ public class AskService {
 
         // 2. Refuse early when there is no reliable source material.
         if (!retrieval.sufficientEvidence()) {
-            return refuse(conversation, request, retrieval, canned.noSource(), null,
+            return refuse(conversation, request, brainId, retrieval, canned.noSource(), null,
                     "insufficient evidence");
         }
 
         // 3. Build the locked prompt and call the model (with fallback).
-        String prompt = promptBuilderService.build(request.question(), retrieval.chunks());
+        String prompt = promptBuilderService.build(request.question(), retrieval.chunks(), brainId);
         ModelRouterService.RoutedResponse routed =
                 modelRouterService.generate(AiRequest.forGuidelineAnswer(prompt));
 
         // 4. Parse the model's JSON answer.
         ModelAnswer modelAnswer = parseModelAnswer(routed.response().content());
         if (modelAnswer == null) {
-            return refuse(conversation, request, retrieval, canned.escalation(), prompt,
+            return refuse(conversation, request, brainId, retrieval, canned.escalation(), prompt,
                     "unparseable model response");
         }
 
@@ -122,7 +122,7 @@ public class AskService {
         //     a cited answer plus an escalation flag is a meaningful response.
         if (Boolean.TRUE.equals(modelAnswer.humanEscalationRequired())
                 && (modelAnswer.citations() == null || modelAnswer.citations().isEmpty())) {
-            return refuse(conversation, request, retrieval, canned.noSource(), prompt,
+            return refuse(conversation, request, brainId, retrieval, canned.noSource(), prompt,
                     "model escalated without citations");
         }
 
@@ -139,10 +139,10 @@ public class AskService {
         modelAnswer = ensureCitations(modelAnswer, retrieval.chunks());
 
         // 5. Compliance validation — failed answers are never shown.
-        var validation = answerValidationService.validate(modelAnswer, true);
+        var validation = answerValidationService.validate(modelAnswer, true, brainId);
         if (!validation.valid()) {
             log.warn("Answer rejected by validator: {}", validation.failureReason());
-            return refuse(conversation, request, retrieval, canned.escalation(), prompt,
+            return refuse(conversation, request, brainId, retrieval, canned.escalation(), prompt,
                     validation.failureReason());
         }
 
@@ -167,7 +167,7 @@ public class AskService {
                 routed.response().modelName(), confidence, routed.fallbackUsed(), escalate);
 
         return new AskResponse(conversation.getId(), modelAnswer.answer(), citations,
-                confidence, escalate, promptBuilderService.disclaimer());
+                confidence, escalate, promptBuilderService.disclaimer(brainId));
     }
 
     // ------------------------------------------------------------------
@@ -186,6 +186,7 @@ public class AskService {
 
     private AskResponse refuse(Conversation conversation,
                                AskRequest request,
+                               UUID brainId,
                                RetrievalResult retrieval,
                                String answerText,
                                String prompt,
@@ -199,7 +200,7 @@ public class AskService {
                 retrieval.chunks(), prompt, answerText, null, null, retrieval.confidence(), false, true);
 
         return new AskResponse(conversation.getId(), answerText, List.of(),
-                retrieval.confidence(), true, promptBuilderService.disclaimer());
+                retrieval.confidence(), true, promptBuilderService.disclaimer(brainId));
     }
 
     private Conversation resolveConversation(AskRequest request, UUID brainId) {

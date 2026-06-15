@@ -1,6 +1,7 @@
 package com.msfg.rag.controller;
 
 import com.msfg.rag.domain.RuleRevision;
+import com.msfg.rag.service.BrainResolver;
 import com.msfg.rag.service.ai.PromptBuilderService;
 import com.msfg.rag.service.ai.RulesService;
 import com.msfg.rag.service.ai.RulesService.RuleState;
@@ -36,10 +37,13 @@ public class AdminRulesController {
 
     private final RulesService rulesService;
     private final PromptBuilderService promptBuilder;
+    private final BrainResolver brainResolver;
 
-    public AdminRulesController(RulesService rulesService, PromptBuilderService promptBuilder) {
+    public AdminRulesController(RulesService rulesService, PromptBuilderService promptBuilder,
+                                BrainResolver brainResolver) {
         this.rulesService  = rulesService;
         this.promptBuilder = promptBuilder;
+        this.brainResolver = brainResolver;
     }
 
     // ── GET /api/ai/admin/rules ──────────────────────────────────────────────
@@ -130,7 +134,7 @@ public class AdminRulesController {
     @GetMapping("/preview")
     public Map<String, String> preview() {
         String prompt = promptBuilder.build(
-                "<your question here>", List.of());
+                "<your question here>", List.of(), brainResolver.resolve(null).getId());
         return Map.of("prompt", prompt);
     }
 

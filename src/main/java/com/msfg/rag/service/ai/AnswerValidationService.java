@@ -1,15 +1,17 @@
 package com.msfg.rag.service.ai;
 
-import com.msfg.rag.pack.DomainPack;
+import com.msfg.rag.pack.DomainPackRegistry;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * Compliance gate that runs on every model answer before it reaches the
  * website. An answer that fails here is never shown to the visitor —
- * the caller returns the escalation response instead.
+ * the caller returns the escalation response instead. The prohibited-phrase
+ * and eligible-phrase lists are resolved per brain from DomainPackRegistry.
  *
  * COMPLIANCE-CRITICAL: phrase lists come from the domain pack (guardrails
  * section). Additions to the pack are fine; removals need review.
@@ -17,18 +19,20 @@ import java.util.Locale;
 @Service
 public class AnswerValidationService {
 
-    private final List<String> prohibitedPhrases;
-    private final String eligiblePhrase;
+    private final DomainPackRegistry registry;
 
-    public AnswerValidationService(DomainPack pack) {
-        this.prohibitedPhrases = pack.guardrails().prohibitedPhrases();
-        this.eligiblePhrase = pack.guardrails().eligiblePhrase();
+    public AnswerValidationService(DomainPackRegistry registry) {
+        this.registry = registry;
     }
 
-    public ValidationResult validate(ModelAnswer answer, boolean evidenceWasSufficient) {
+    public ValidationResult validate(ModelAnswer answer, boolean evidenceWasSufficient, UUID brainId) {
         if (answer == null || answer.answer() == null || answer.answer().isBlank()) {
             return ValidationResult.fail("Model returned an empty answer");
         }
+
+        var guardrails = registry.bundle(brainId).pack().guardrails();
+        List<String> prohibitedPhrases = guardrails.prohibitedPhrases();
+        String eligiblePhrase = guardrails.eligiblePhrase();
 
         String lower = answer.answer().toLowerCase(Locale.US);
 
@@ -42,7 +46,6 @@ public class AnswerValidationService {
             return ValidationResult.fail("\"You are eligible\" used outside a direct guideline quote");
         }
 
-        // An answer built on sufficient evidence must cite its sources.
         if (evidenceWasSufficient
                 && (answer.citations() == null || answer.citations().isEmpty())) {
             return ValidationResult.fail("Answer is missing citations");

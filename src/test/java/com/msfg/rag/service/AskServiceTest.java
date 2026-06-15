@@ -75,8 +75,8 @@ class AskServiceTest {
                 .thenReturn(new RetrievalResult(chunks, 1.0, true));
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
-        when(promptBuilder.build(anyString(), anyList())).thenReturn("PROMPT");
-        when(promptBuilder.disclaimer()).thenReturn("pack-disclaimer");
+        when(promptBuilder.build(anyString(), anyList(), any())).thenReturn("PROMPT");
+        when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
 
         ModelRouterService router = mock(ModelRouterService.class);
         AiResponse aiResponse = new AiResponse(modelJson, "anthropic", "claude", 10, 10);
@@ -93,7 +93,7 @@ class AskServiceTest {
         when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         return new AskService(TestPacks.msfg(), classifier, retrieval, promptBuilder, router,
-                new AnswerValidationService(TestPacks.msfg()), audit,
+                new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper());
     }
 
@@ -106,8 +106,8 @@ class AskServiceTest {
         when(retrieval.retrieve(anyString(), any())).thenReturn(RetrievalResult.empty());
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
-        when(promptBuilder.build(anyString(), anyList())).thenReturn("PROMPT");
-        when(promptBuilder.disclaimer()).thenReturn("pack-disclaimer");
+        when(promptBuilder.build(anyString(), anyList(), any())).thenReturn("PROMPT");
+        when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
 
         ModelRouterService router = mock(ModelRouterService.class);
 
@@ -121,7 +121,7 @@ class AskServiceTest {
         when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         return new AskService(TestPacks.msfg(), classifier, retrieval, promptBuilder, router,
-                new AnswerValidationService(TestPacks.msfg()), audit,
+                new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper());
     }
 

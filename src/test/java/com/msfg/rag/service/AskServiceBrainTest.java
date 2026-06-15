@@ -59,7 +59,7 @@ class AskServiceBrainTest {
         // Insufficient evidence → short refusal path: still saves conversation,
         // message, sources, and records the audit row — all the writers we care about.
         when(retrieval.retrieve(anyString(), any())).thenReturn(RetrievalResult.empty());
-        when(promptBuilder.disclaimer()).thenReturn("pack-disclaimer");
+        when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
         when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(conversations.save(any())).thenAnswer(inv -> {
@@ -70,7 +70,7 @@ class AskServiceBrainTest {
             return c;
         });
         return new AskService(TestPacks.msfg(), classifier, retrieval, promptBuilder, router,
-                new AnswerValidationService(TestPacks.msfg()), audit,
+                new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper());
     }
 

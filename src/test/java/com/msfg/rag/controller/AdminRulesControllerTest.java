@@ -1,6 +1,9 @@
 package com.msfg.rag.controller;
 
+import com.msfg.rag.TestBrains;
+import com.msfg.rag.domain.Brain;
 import com.msfg.rag.domain.RuleRevision;
+import com.msfg.rag.service.BrainResolver;
 import com.msfg.rag.service.ai.PromptBuilderService;
 import com.msfg.rag.service.ai.RulesService;
 import com.msfg.rag.service.ai.RulesService.RuleState;
@@ -17,8 +20,15 @@ class AdminRulesControllerTest {
 
     private final RulesService rulesService = mock(RulesService.class);
     private final PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
+    private final BrainResolver brainResolver = mock(BrainResolver.class);
     private final AdminRulesController controller =
-            new AdminRulesController(rulesService, promptBuilder);
+            newController();
+
+    private AdminRulesController newController() {
+        when(brainResolver.resolve(any())).thenReturn(
+                new Brain(TestBrains.DEFAULT_ID, "mortgage", "Mountain State Financial Group"));
+        return new AdminRulesController(rulesService, promptBuilder, brainResolver);
+    }
 
     // ── GET /api/ai/admin/rules ──────────────────────────────────────────────
 
@@ -139,7 +149,7 @@ class AdminRulesControllerTest {
 
     @Test
     void previewReturnsBuildOutput() {
-        when(promptBuilder.build(anyString(), eq(List.of()))).thenReturn("<<built prompt>>");
+        when(promptBuilder.build(anyString(), eq(List.of()), any())).thenReturn("<<built prompt>>");
 
         Map<String, String> body = controller.preview();
 

@@ -1,43 +1,44 @@
 package com.msfg.rag.service.ai;
 
-import com.msfg.rag.pack.DomainPack;
+import com.msfg.rag.pack.DomainPackRegistry;
 import com.msfg.rag.service.retrieval.RetrievedChunk;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Builds the final prompt sent to the LLM. The template and disclaimer come
- * from the domain pack, keeping all company-specific text out of code.
- * Hard rules and guidance are injected live from {@link RulesService} (pack
- * defaults until edited) and remain compliance-critical: the model must
- * answer only from the supplied source context, never from general knowledge.
+ * from the brain's pack (resolved per request via DomainPackRegistry), keeping
+ * all company-specific text out of code. Hard rules and guidance are injected
+ * live from {@link RulesService} (pack defaults until edited) and remain
+ * compliance-critical: the model must answer only from the supplied source
+ * context, never from general knowledge.
  */
 @Service
 public class PromptBuilderService {
 
-    private final String template;
-    private final String disclaimer;
+    private final DomainPackRegistry registry;
     private final RulesService rules;
 
-    public PromptBuilderService(DomainPack pack, RulesService rules) {
-        this.template = pack.promptTemplate();
-        this.disclaimer = pack.disclaimer();
+    public PromptBuilderService(DomainPackRegistry registry, RulesService rules) {
+        this.registry = registry;
         this.rules = rules;
     }
 
-    /** The pack's public disclaimer, appended to every website response. */
-    public String disclaimer() {
-        return disclaimer;
+    /** The brain's public disclaimer, appended to every website response. */
+    public String disclaimer(UUID brainId) {
+        return registry.bundle(brainId).pack().disclaimer();
     }
 
-    public String build(String question, List<RetrievedChunk> chunks) {
-        return template.formatted(
+    public String build(String question, List<RetrievedChunk> chunks, UUID brainId) {
+        var pack = registry.bundle(brainId).pack();
+        return pack.promptTemplate().formatted(
                 rules.effectiveHard(),
                 rules.effectiveGuidance(),
                 formatContext(chunks),
                 question,
-                disclaimer);
+                pack.disclaimer());
     }
 
     /**
