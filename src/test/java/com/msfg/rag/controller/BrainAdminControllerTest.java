@@ -13,6 +13,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -68,5 +70,91 @@ class BrainAdminControllerTest {
         UUID id = UUID.randomUUID();
         when(brains.findById(id)).thenReturn(Optional.of(brain(id, "lending", false, true)));
         assertEquals("lending", controller.get(id).slug());
+    }
+
+    // ---- Task 2: create ----
+
+    /** Controller whose pack check is a no-op, so source/slug cases never touch the filesystem. */
+    private BrainAdminController noPackCheck() {
+        return new BrainAdminController(brains, syncService, packRegistry, router) {
+            @Override void validatePack(String packRef, String slug) { /* accept */ }
+        };
+    }
+
+    @Test
+    void createPersistsAndReturnsDtoForALocalBrain() {
+        when(brains.findBySlug("lending")).thenReturn(Optional.empty());
+        when(brains.save(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
+                "lending", "Lending Brain", "packs/test-pack", "local",
+                null, null, null, "/corpora/lending",
+                "anthropic", "claude-haiku-4-5", "openai", "gpt-4.1-nano");
+
+        BrainAdminController.BrainDto dto = noPackCheck().create(req);
+
+        assertEquals("lending", dto.slug());
+        assertEquals("Lending Brain", dto.displayName());
+        assertEquals("local", dto.sourceType());
+        assertEquals("/corpora/lending", dto.localPath());
+        assertEquals(false, dto.isDefault());   // never seed a default on create
+        assertEquals(true, dto.isActive());
+    }
+
+    @Test
+    void createRejectsBadSlug() {
+        BrainAdminController.CreateBrainRequest req = req("Bad Slug", "local");
+        assertThrows(IllegalArgumentException.class, () -> controller.create(req));
+    }
+
+    @Test
+    void createRejectsDuplicateSlug() {
+        when(brains.findBySlug("mortgage")).thenReturn(Optional.of(brain(UUID.randomUUID(), "mortgage", true, true)));
+        assertThrows(IllegalArgumentException.class, () -> controller.create(req("mortgage", "local")));
+    }
+
+    @Test
+    void createRejectsLocalWithoutPath() {
+        BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
+                "lending", "Lending", "packs/test-pack", "local",
+                null, null, null, "   ", "anthropic", "m", "openai", "u");
+        assertThrows(IllegalArgumentException.class, () -> controller.create(req));
+    }
+
+    @Test
+    void createRejectsS3WithoutBucket() {
+        BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
+                "lending", "Lending", "packs/test-pack", "s3",
+                "", "p/", "us-west-1", null, "anthropic", "m", "openai", "u");
+        assertThrows(IllegalArgumentException.class, () -> controller.create(req));
+    }
+
+    @Test
+    void createValidatesPackSlugAgainstRealPack() {
+        when(brains.findBySlug("testco")).thenReturn(Optional.empty());
+        when(brains.save(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
+        // Real on-disk fixture pack (slug: testco). Brain slug matches -> passes.
+        BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
+                "testco", "Test Co", "src/test/resources/packs/test-pack", "local",
+                null, null, null, "/corpora/testco", "anthropic", "m", "openai", "u");
+        assertEquals("testco", controller.create(req).slug());
+    }
+
+    @Test
+    void createRejectsPackSlugMismatch() {
+        when(brains.findBySlug("mismatch")).thenReturn(Optional.empty());
+        // Same real pack (slug: testco) but brain slug differs -> 400.
+        BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
+                "mismatch", "Mismatch", "src/test/resources/packs/test-pack", "local",
+                null, null, null, "/corpora/mismatch", "anthropic", "m", "openai", "u");
+        assertThrows(IllegalArgumentException.class, () -> controller.create(req));
+    }
+
+    // helper
+    private BrainAdminController.CreateBrainRequest req(String slug, String sourceType) {
+        return new BrainAdminController.CreateBrainRequest(
+                slug, "Display", "packs/test-pack", sourceType,
+                "bucket", "p/", "us-west-1", "/corpora/x",
+                "anthropic", "m", "openai", "u");
     }
 }
