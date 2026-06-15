@@ -55,13 +55,12 @@ class BrainRepositoryTest {
     }
 
     @Test
-    void existingTableInsertWithoutBrainIdDefaultsToDefaultBrain() {
-        em.getEntityManager().createNativeQuery(
-                "INSERT INTO brain_documents (title, source_name, source_type, file_name) " +
-                "VALUES ('T', 'S', 'educational', 'f.pdf')").executeUpdate();
-        em.flush();
-        Object brainId = em.getEntityManager().createNativeQuery(
-                "SELECT brain_id FROM brain_documents WHERE file_name = 'f.pdf'").getSingleResult();
-        assertEquals(TestBrains.DEFAULT_ID, UUID.fromString(brainId.toString()));
+    void insertWithoutBrainIdNowFails() {
+        assertThrows(Exception.class, () -> {
+            em.getEntityManager().createNativeQuery(
+                    "INSERT INTO brain_documents (title, source_name, source_type, file_name) " +
+                    "VALUES ('T', 'S', 'educational', 'f.pdf')").executeUpdate();
+            em.flush();
+        });
     }
 }
