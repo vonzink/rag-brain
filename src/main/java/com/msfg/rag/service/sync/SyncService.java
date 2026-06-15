@@ -1,7 +1,9 @@
 package com.msfg.rag.service.sync;
 
+import com.msfg.rag.domain.Brain;
 import com.msfg.rag.domain.MortgageDocument;
 import com.msfg.rag.domain.SourceType;
+import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.repository.MortgageDocumentRepository;
 import com.msfg.rag.service.ingestion.DocumentIngestionService;
 import org.slf4j.Logger;
@@ -28,19 +30,26 @@ public class SyncService {
 
     private static final Logger log = LoggerFactory.getLogger(SyncService.class);
 
-    private final CorpusSource corpusSource;
+    private final CorpusSourceFactory corpusSourceFactory;
+    private final BrainRepository brainRepository;
     private final DocumentIngestionService ingestionService;
     private final MortgageDocumentRepository documentRepository;
 
-    public SyncService(CorpusSource corpusSource,
+    public SyncService(CorpusSourceFactory corpusSourceFactory,
+                       BrainRepository brainRepository,
                        DocumentIngestionService ingestionService,
                        MortgageDocumentRepository documentRepository) {
-        this.corpusSource = corpusSource;
+        this.corpusSourceFactory = corpusSourceFactory;
+        this.brainRepository = brainRepository;
         this.ingestionService = ingestionService;
         this.documentRepository = documentRepository;
     }
 
     public SyncReport sync(boolean dryRun, UUID brainId) {
+        Brain brain = brainRepository.findById(brainId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown brain: " + brainId));
+        CorpusSource corpusSource = corpusSourceFactory.forBrain(brain);
+
         SyncManifest manifest = SyncManifest.parse(corpusSource.fetchManifest());
         List<String> s3Files = corpusSource.listFiles();
         List<MortgageDocument> brainDocs = documentRepository.findByBrainId(brainId);

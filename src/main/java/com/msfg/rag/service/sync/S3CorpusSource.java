@@ -1,7 +1,5 @@
 package com.msfg.rag.service.sync;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -16,10 +14,9 @@ import java.util.Optional;
 
 /**
  * S3-backed corpus (mirror of scripts/s3-ingest/sync.mjs listCorpus/s3Bytes).
- * The client uses the default AWS credentials chain; region/bucket/prefix come
- * from brain.corpus.* properties (same env vars as the Node script).
+ * The client uses the default AWS credentials chain; region/bucket/prefix are
+ * supplied by CorpusSourceFactory from the brain's binding columns.
  */
-@Component
 public class S3CorpusSource implements CorpusSource {
 
     static final String MANIFEST_NAME = "_manifest.json";
@@ -28,9 +25,7 @@ public class S3CorpusSource implements CorpusSource {
     private final String prefix;
     private final S3Client s3;
 
-    public S3CorpusSource(@Value("${brain.corpus.bucket}") String bucket,
-                          @Value("${brain.corpus.prefix}") String prefix,
-                          @Value("${brain.corpus.region}") String region) {
+    public S3CorpusSource(String bucket, String prefix, String region) {
         this.bucket = bucket;
         this.prefix = prefix;
         this.s3 = S3Client.builder().region(Region.of(region)).build();

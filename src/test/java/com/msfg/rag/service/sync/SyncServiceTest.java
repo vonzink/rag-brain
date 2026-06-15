@@ -1,7 +1,9 @@
 package com.msfg.rag.service.sync;
 
+import com.msfg.rag.domain.Brain;
 import com.msfg.rag.domain.MortgageDocument;
 import com.msfg.rag.domain.SourceType;
+import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.repository.MortgageDocumentRepository;
 import com.msfg.rag.service.ingestion.DocumentIngestionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +25,8 @@ import static org.mockito.Mockito.*;
 class SyncServiceTest {
 
     private CorpusSource corpusSource;
+    private CorpusSourceFactory corpusSourceFactory;
+    private BrainRepository brainRepository;
     private DocumentIngestionService ingestionService;
     private MortgageDocumentRepository documentRepository;
     private SyncService syncService;
@@ -36,9 +40,22 @@ class SyncServiceTest {
     @BeforeEach
     void setUp() {
         corpusSource = mock(CorpusSource.class);
+        corpusSourceFactory = mock(CorpusSourceFactory.class);
+        brainRepository = mock(BrainRepository.class);
         ingestionService = mock(DocumentIngestionService.class);
         documentRepository = mock(MortgageDocumentRepository.class);
-        syncService = new SyncService(corpusSource, ingestionService, documentRepository);
+
+        // Wire factory to return the mock corpusSource for any brain
+        when(corpusSourceFactory.forBrain(any(Brain.class))).thenReturn(corpusSource);
+        // Wire repository to return a default brain for any id
+        Brain defaultBrain = new Brain(TestBrains.DEFAULT_ID, "default", "Default Brain");
+        defaultBrain.setSourceType("s3");
+        defaultBrain.setS3Bucket("test-bucket");
+        defaultBrain.setS3Prefix("prefix/");
+        defaultBrain.setS3Region("us-west-1");
+        when(brainRepository.findById(any(UUID.class))).thenReturn(Optional.of(defaultBrain));
+
+        syncService = new SyncService(corpusSourceFactory, brainRepository, ingestionService, documentRepository);
     }
 
     // -------------------------------------------------------------------------
