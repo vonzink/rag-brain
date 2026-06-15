@@ -80,7 +80,7 @@ class AskServiceTest {
 
         ModelRouterService router = mock(ModelRouterService.class);
         AiResponse aiResponse = new AiResponse(modelJson, "anthropic", "claude", 10, 10);
-        when(router.generate(any()))
+        when(router.generate(any(), any()))
                 .thenReturn(new ModelRouterService.RoutedResponse(aiResponse, false));
 
         AuditLogService audit = mock(AuditLogService.class);

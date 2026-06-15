@@ -121,7 +121,7 @@ public class RetrievalService {
         // LLM rerank: hybrid scores find the neighborhood, the reranker picks
         // the truly relevant chunks. Replaces combinedScore with rerank score.
         if (rerank && !ranked.isEmpty()) {
-            ranked = rerankerService.rerank(question, ranked, topK);
+            ranked = rerankerService.rerank(question, ranked, topK, brainId);
         } else if (ranked.size() > topK) {
             ranked = ranked.subList(0, topK);
         }

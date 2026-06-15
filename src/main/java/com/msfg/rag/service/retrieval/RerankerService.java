@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * LLM-based reranker: scores hybrid-search candidates for actual relevance
@@ -60,14 +61,15 @@ public class RerankerService {
      * rerank score (normalized 0..1) as their combinedScore so downstream
      * confidence thresholds work unchanged.
      */
-    public List<RetrievedChunk> rerank(String question, List<RetrievedChunk> candidates, int topK) {
+    public List<RetrievedChunk> rerank(String question, List<RetrievedChunk> candidates, int topK,
+                                       UUID brainId) {
         if (candidates.size() <= 1) {
             return candidates;
         }
         try {
             String prompt = PROMPT_TEMPLATE.formatted(question, formatExcerpts(candidates));
             String response = modelRouterService
-                    .generate(AiRequest.forUtility(prompt, 0.0, 800))
+                    .generate(AiRequest.forUtility(prompt, 0.0, 800), brainId)
                     .response().content();
 
             double[] scores = parseScores(response, candidates.size());
