@@ -67,11 +67,13 @@ public class DocumentIngestionService {
                                    SourceType sourceType,
                                    String documentVersion,
                                    LocalDate effectiveDate,
-                                   LocalDate expirationDate) {
+                                   LocalDate expirationDate,
+                                   UUID brainId) {
 
         String storageKey = storageService.store(fileName, new ByteArrayInputStream(fileBytes));
 
         MortgageDocument document = new MortgageDocument();
+        document.setBrainId(brainId);
         document.setTitle(title);
         document.setSourceName(sourceName);
         document.setSourceType(sourceType);
@@ -128,6 +130,7 @@ public class DocumentIngestionService {
             for (int i = 0; i < batch.size(); i++) {
                 TextChunk tc = batch.get(i);
                 DocumentChunk entity = new DocumentChunk();
+                entity.setBrainId(document.getBrainId());
                 entity.setDocument(document);
                 entity.setChunkIndex(tc.index());
                 entity.setContent(tc.content());

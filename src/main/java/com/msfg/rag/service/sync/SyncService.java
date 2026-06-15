@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * In-app port of scripts/s3-ingest/sync.mjs: list corpus + manifest, hash,
@@ -39,7 +40,7 @@ public class SyncService {
         this.documentRepository = documentRepository;
     }
 
-    public SyncReport sync(boolean dryRun) {
+    public SyncReport sync(boolean dryRun, UUID brainId) {
         SyncManifest manifest = SyncManifest.parse(corpusSource.fetchManifest());
         List<String> s3Files = corpusSource.listFiles();
         List<MortgageDocument> brainDocs = documentRepository.findAll();
@@ -68,7 +69,7 @@ public class SyncService {
                 continue;
             }
             try {
-                execute(action, bytesByFile);
+                execute(action, bytesByFile, brainId);
                 results.add(new SyncReport.Result(action.fileName(), action.type().name(),
                         action.reason(), true, true, null));
             } catch (Exception e) {
@@ -80,14 +81,14 @@ public class SyncService {
         return new SyncReport(dryRun, summary, results);
     }
 
-    private void execute(SyncAction action, Map<String, byte[]> bytesByFile) {
+    private void execute(SyncAction action, Map<String, byte[]> bytesByFile, UUID brainId) {
         switch (action.type()) {
-            case UPLOAD -> ingest(action, bytesByFile.get(action.fileName()));
+            case UPLOAD -> ingest(action, bytesByFile.get(action.fileName()), brainId);
             case UPDATE -> {
                 // New version first; old rows stay active until success. Then
                 // deactivate every stale active row with this fileName — covers
                 // the planned row AND any pre-existing duplicate actives.
-                MortgageDocument replacement = ingest(action, bytesByFile.get(action.fileName()));
+                MortgageDocument replacement = ingest(action, bytesByFile.get(action.fileName()), brainId);
                 for (MortgageDocument stale : documentRepository.findByActiveTrue()) {
                     if (stale.getFileName().equals(action.fileName())) {
                         boolean same = stale == replacement
@@ -105,7 +106,7 @@ public class SyncService {
         }
     }
 
-    private MortgageDocument ingest(SyncAction action, byte[] bytes) {
+    private MortgageDocument ingest(SyncAction action, byte[] bytes, UUID brainId) {
         SyncManifest.Entry meta = action.meta();
         return ingestionService.ingest(
                 action.fileName(),
@@ -115,7 +116,8 @@ public class SyncService {
                 SourceType.valueOf(meta.sourceType()),
                 meta.documentVersion(),
                 meta.effectiveDate() == null ? null : LocalDate.parse(meta.effectiveDate()),
-                meta.expirationDate() == null ? null : LocalDate.parse(meta.expirationDate()));
+                meta.expirationDate() == null ? null : LocalDate.parse(meta.expirationDate()),
+                brainId);
     }
 
     private void setActive(java.util.UUID documentId, boolean active) {

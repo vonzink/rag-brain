@@ -30,6 +30,7 @@ public class AuditLogService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuditLog record(UUID conversationId,
+                           UUID brainId,
                            String userQuestion,
                            List<RetrievedChunk> retrievedChunks,
                            String finalPrompt,
@@ -42,6 +43,7 @@ public class AuditLogService {
 
         AuditLog log = new AuditLog();
         log.setConversationId(conversationId);
+        log.setBrainId(brainId);
         log.setUserQuestion(piiRedactionService.redact(userQuestion));
         log.setRetrievedContext(toContextJson(retrievedChunks));
         log.setFinalPrompt(piiRedactionService.redact(finalPrompt));

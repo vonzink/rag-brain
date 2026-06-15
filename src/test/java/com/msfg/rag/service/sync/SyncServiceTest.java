@@ -20,6 +20,8 @@ import static org.mockito.Mockito.*;
 
 class SyncServiceTest {
 
+    private static final UUID DEFAULT_BRAIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
     private CorpusSource corpusSource;
     private DocumentIngestionService ingestionService;
     private MortgageDocumentRepository documentRepository;
@@ -55,7 +57,7 @@ class SyncServiceTest {
         old.setActive(true);
         when(documentRepository.findAll()).thenReturn(List.of(old));
 
-        SyncReport report = syncService.sync(true);
+        SyncReport report = syncService.sync(true, DEFAULT_BRAIN);
 
         assertTrue(report.dryRun());
         report.results().forEach(r -> assertFalse(r.executed()));
@@ -92,10 +94,10 @@ class SyncServiceTest {
 
         MortgageDocument saved = new MortgageDocument();
         saved.setFileName("policy.pdf");
-        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(saved);
 
-        SyncReport report = syncService.sync(false);
+        SyncReport report = syncService.sync(false, DEFAULT_BRAIN);
 
         verify(ingestionService).ingest(
                 eq("policy.pdf"),
@@ -105,7 +107,8 @@ class SyncServiceTest {
                 eq(SourceType.INTERNAL_POLICY),
                 isNull(),
                 eq(LocalDate.of(2024, 1, 1)),
-                isNull());
+                isNull(),
+                eq(DEFAULT_BRAIN));
 
         assertEquals(1, report.results().size());
         assertTrue(report.results().get(0).succeeded());
@@ -132,14 +135,14 @@ class SyncServiceTest {
         // Replacement is a distinct object from stale; identity comparison governs (both ids null)
         MortgageDocument replacement = new MortgageDocument();
         replacement.setFileName("guide.pdf");
-        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(replacement);
         when(documentRepository.findByActiveTrue()).thenReturn(List.of(stale));
 
-        SyncReport report = syncService.sync(false);
+        SyncReport report = syncService.sync(false, DEFAULT_BRAIN);
 
         InOrder order = inOrder(ingestionService, documentRepository);
-        order.verify(ingestionService).ingest(any(), any(), any(), any(), any(), any(), any(), any());
+        order.verify(ingestionService).ingest(any(), any(), any(), any(), any(), any(), any(), any(), any());
         order.verify(documentRepository).save(stale);
 
         assertFalse(stale.isActive());
@@ -167,16 +170,16 @@ class SyncServiceTest {
         when(documentRepository.findAll()).thenReturn(List.of(stale));
 
         when(ingestionService.ingest(
-                eq("guide.pdf"), any(), any(), any(), any(), any(), any(), any()))
+                eq("guide.pdf"), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("embedding-timeout"));
 
         MortgageDocument newDoc = new MortgageDocument();
         newDoc.setFileName("new.pdf");
         when(ingestionService.ingest(
-                eq("new.pdf"), any(), any(), any(), any(), any(), any(), any()))
+                eq("new.pdf"), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(newDoc);
 
-        SyncReport report = syncService.sync(false);
+        SyncReport report = syncService.sync(false, DEFAULT_BRAIN);
 
         // findByActiveTrue never called; stale never saved
         verify(documentRepository, never()).findByActiveTrue();
@@ -218,7 +221,7 @@ class SyncServiceTest {
         when(documentRepository.findById(inactive.getId())).thenReturn(Optional.of(inactive));
         when(documentRepository.findById(active.getId())).thenReturn(Optional.of(active));
 
-        syncService.sync(false);
+        syncService.sync(false, DEFAULT_BRAIN);
 
         assertTrue(inactive.isActive(), "REACTIVATE must set active=true");
         assertFalse(active.isActive(), "DEACTIVATE must set active=false");
@@ -251,11 +254,11 @@ class SyncServiceTest {
 
         MortgageDocument replacement = new MortgageDocument();
         replacement.setFileName("guide.pdf");
-        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(replacement);
         when(documentRepository.findByActiveTrue()).thenReturn(List.of(stale1, stale2));
 
-        syncService.sync(false);
+        syncService.sync(false, DEFAULT_BRAIN);
 
         assertFalse(stale1.isActive(), "stale1 must be deactivated");
         assertFalse(stale2.isActive(), "stale2 must be deactivated");

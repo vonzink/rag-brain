@@ -20,6 +20,9 @@ public class Conversation {
     @GeneratedValue
     private UUID id;
 
+    @Column(name = "brain_id", nullable = false)
+    private UUID brainId;
+
     @Column(name = "user_session_id", nullable = false)
     private String userSessionId;
 
@@ -46,6 +49,9 @@ public class Conversation {
     // --- getters / setters ---
 
     public UUID getId() { return id; }
+
+    public UUID getBrainId() { return brainId; }
+    public void setBrainId(UUID brainId) { this.brainId = brainId; }
 
     public String getUserSessionId() { return userSessionId; }
     public void setUserSessionId(String userSessionId) { this.userSessionId = userSessionId; }

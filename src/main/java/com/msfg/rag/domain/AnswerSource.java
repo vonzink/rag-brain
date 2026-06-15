@@ -24,6 +24,9 @@ public class AnswerSource {
     @GeneratedValue
     private UUID id;
 
+    @Column(name = "brain_id", nullable = false)
+    private UUID brainId;
+
     @Column(name = "message_id", nullable = false)
     private UUID messageId;
 
@@ -62,6 +65,9 @@ public class AnswerSource {
     // --- getters / setters ---
 
     public UUID getId() { return id; }
+
+    public UUID getBrainId() { return brainId; }
+    public void setBrainId(UUID brainId) { this.brainId = brainId; }
 
     public UUID getMessageId() { return messageId; }
     public void setMessageId(UUID messageId) { this.messageId = messageId; }

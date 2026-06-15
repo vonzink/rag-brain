@@ -26,6 +26,9 @@ public class MortgageDocument {
     @GeneratedValue
     private UUID id;
 
+    @Column(name = "brain_id", nullable = false)
+    private UUID brainId;
+
     @Column(nullable = false, length = 500)
     private String title;
 
@@ -77,6 +80,9 @@ public class MortgageDocument {
     // --- getters / setters ---
 
     public UUID getId() { return id; }
+
+    public UUID getBrainId() { return brainId; }
+    public void setBrainId(UUID brainId) { this.brainId = brainId; }
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }

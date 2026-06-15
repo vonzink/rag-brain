@@ -26,6 +26,9 @@ public class AuditLog {
     @GeneratedValue
     private UUID id;
 
+    @Column(name = "brain_id", nullable = false)
+    private UUID brainId;
+
     @Column(name = "conversation_id")
     private UUID conversationId;
 
@@ -72,6 +75,9 @@ public class AuditLog {
     // --- getters / setters ---
 
     public UUID getId() { return id; }
+
+    public UUID getBrainId() { return brainId; }
+    public void setBrainId(UUID brainId) { this.brainId = brainId; }
 
     public UUID getConversationId() { return conversationId; }
     public void setConversationId(UUID conversationId) { this.conversationId = conversationId; }

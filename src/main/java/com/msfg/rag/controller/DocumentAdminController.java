@@ -65,7 +65,8 @@ public class DocumentAdminController {
             @RequestParam("sourceType") SourceType sourceType,
             @RequestParam(value = "documentVersion", required = false) String documentVersion,
             @RequestParam(value = "effectiveDate", required = false) LocalDate effectiveDate,
-            @RequestParam(value = "expirationDate", required = false) LocalDate expirationDate)
+            @RequestParam(value = "expirationDate", required = false) LocalDate expirationDate,
+            @RequestParam(value = "brain", required = false) String brain)
             throws IOException {
 
         String fileName = file.getOriginalFilename() == null ? "upload" : file.getOriginalFilename();
@@ -77,9 +78,10 @@ public class DocumentAdminController {
                     "Unsupported file type '" + extension + "'. Allowed: " + ALLOWED_EXTENSIONS);
         }
 
+        UUID brainId = brainResolver.resolve(brain).getId();
         MortgageDocument document = ingestionService.ingest(
                 fileName, file.getBytes(), title, sourceName, sourceType,
-                documentVersion, effectiveDate, expirationDate);
+                documentVersion, effectiveDate, expirationDate, brainId);
 
         return ResponseEntity.ok(DocumentDto.from(document));
     }
@@ -110,8 +112,9 @@ public class DocumentAdminController {
      * returns the plan without changing anything.
      */
     @PostMapping("/sync")
-    public SyncReport sync(@RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun) {
-        return syncService.sync(dryRun);
+    public SyncReport sync(@RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun,
+                           @RequestParam(value = "brain", required = false) String brain) {
+        return syncService.sync(dryRun, brainResolver.resolve(brain).getId());
     }
 
     /**

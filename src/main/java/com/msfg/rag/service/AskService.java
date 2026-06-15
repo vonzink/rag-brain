@@ -83,7 +83,7 @@ public class AskService {
 
     @Transactional
     public AskResponse ask(AskRequest request, UUID brainId) {
-        Conversation conversation = resolveConversation(request);
+        Conversation conversation = resolveConversation(request, brainId);
         saveMessage(conversation, Message.ROLE_USER, request.question(), null);
 
         // 0. Pre-retrieval guardrail: questions we must not answer are caught
@@ -159,9 +159,11 @@ public class AskService {
                 modelAnswer.answer(), routed.response());
         saveAnswerSources(assistantMessage, retrieval.chunks());
 
-        // 7. Audit log (own transaction, survives rollbacks).
-        auditLogService.record(conversation.getId(), request.question(), retrieval.chunks(),
-                prompt, modelAnswer.answer(), routed.response().providerName(),
+        // 7. Audit log (own transaction, survives rollbacks). brainId is passed
+        //    explicitly: record() runs in a REQUIRES_NEW transaction where
+        //    ambient request context is unreliable.
+        auditLogService.record(conversation.getId(), conversation.getBrainId(), request.question(),
+                retrieval.chunks(), prompt, modelAnswer.answer(), routed.response().providerName(),
                 routed.response().modelName(), confidence, routed.fallbackUsed(), escalate);
 
         return new AskResponse(conversation.getId(), modelAnswer.answer(), citations,
@@ -193,27 +195,30 @@ public class AskService {
         Message assistantMessage = saveMessage(conversation, Message.ROLE_ASSISTANT, answerText, null);
         saveAnswerSources(assistantMessage, retrieval.chunks());
 
-        auditLogService.record(conversation.getId(), request.question(), retrieval.chunks(),
-                prompt, answerText, null, null, retrieval.confidence(), false, true);
+        auditLogService.record(conversation.getId(), conversation.getBrainId(), request.question(),
+                retrieval.chunks(), prompt, answerText, null, null, retrieval.confidence(), false, true);
 
         return new AskResponse(conversation.getId(), answerText, List.of(),
                 retrieval.confidence(), true, promptBuilderService.disclaimer());
     }
 
-    private Conversation resolveConversation(AskRequest request) {
+    private Conversation resolveConversation(AskRequest request, UUID brainId) {
         if (request.conversationId() != null) {
             Conversation existing = conversationRepository
                     .findById(request.conversationId()).orElse(null);
-            // The conversation must belong to the same website session —
-            // prevents one visitor from reading or extending another's chat.
+            // The conversation must belong to the same website session AND the
+            // same brain — prevents one visitor from reading or extending
+            // another's chat, and prevents cross-brain conversation sharing.
             if (existing != null
-                    && Objects.equals(existing.getUserSessionId(), request.sessionId())) {
+                    && Objects.equals(existing.getUserSessionId(), request.sessionId())
+                    && Objects.equals(existing.getBrainId(), brainId)) {
                 return existing;
             }
         }
         Conversation conversation = new Conversation();
         conversation.setUserSessionId(request.sessionId());
         conversation.setSource("website");
+        conversation.setBrainId(brainId);
         return conversationRepository.save(conversation);
     }
 
@@ -221,6 +226,7 @@ public class AskService {
                                 com.msfg.rag.provider.AiResponse aiResponse) {
         Message message = new Message();
         message.setConversation(conversation);
+        message.setBrainId(conversation.getBrainId());
         message.setRole(role);
         message.setContent(content);
         if (aiResponse != null) {
@@ -235,6 +241,7 @@ public class AskService {
     private void saveAnswerSources(Message message, List<RetrievedChunk> chunks) {
         for (RetrievedChunk chunk : chunks) {
             AnswerSource source = new AnswerSource();
+            source.setBrainId(message.getBrainId());
             source.setMessageId(message.getId());
             source.setDocumentId(chunk.documentId());
             source.setChunkId(chunk.chunkId());

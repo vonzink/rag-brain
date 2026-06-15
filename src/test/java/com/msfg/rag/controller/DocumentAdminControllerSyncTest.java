@@ -10,36 +10,47 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DocumentAdminControllerSyncTest {
 
+    private static final UUID DEFAULT_BRAIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
     private final SyncService syncService = mock(SyncService.class);
+    private final BrainResolver brainResolver = mock(BrainResolver.class);
     private final DocumentAdminController controller = new DocumentAdminController(
             mock(DocumentIngestionService.class),
             mock(MortgageDocumentRepository.class),
             mock(RetrievalService.class),
             syncService,
-            mock(BrainResolver.class));
+            brainResolver);
+
+    DocumentAdminControllerSyncTest() {
+        com.msfg.rag.domain.Brain brain = new com.msfg.rag.domain.Brain(DEFAULT_BRAIN, "mortgage", "Mortgage");
+        when(brainResolver.resolve(any())).thenReturn(brain);
+    }
 
     @Test
     void syncPassesDryRunFlagThrough() {
         SyncReport report = new SyncReport(true, Map.of("skip", 1), List.of());
-        when(syncService.sync(true)).thenReturn(report);
+        when(syncService.sync(eq(true), eq(DEFAULT_BRAIN))).thenReturn(report);
 
-        assertEquals(report, controller.sync(true));
-        verify(syncService).sync(true);
+        assertEquals(report, controller.sync(true, null));
+        verify(syncService).sync(eq(true), eq(DEFAULT_BRAIN));
     }
 
     @Test
     void syncDefaultsToExecute() {
         SyncReport report = new SyncReport(false, Map.of(), List.of());
-        when(syncService.sync(false)).thenReturn(report);
+        when(syncService.sync(eq(false), eq(DEFAULT_BRAIN))).thenReturn(report);
 
-        assertEquals(report, controller.sync(false));
+        assertEquals(report, controller.sync(false, null));
     }
 }

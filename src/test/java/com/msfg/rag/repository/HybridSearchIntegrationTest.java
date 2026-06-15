@@ -179,6 +179,7 @@ class HybridSearchIntegrationTest {
     private MortgageDocument saveDocument(String sourceName, boolean active,
                                           LocalDate expirationDate) {
         MortgageDocument doc = new MortgageDocument();
+        doc.setBrainId(DEFAULT_BRAIN);
         doc.setTitle(sourceName + " 2026");
         doc.setSourceName(sourceName);
         doc.setSourceType(SourceType.AGENCY_GUIDELINE);
@@ -191,6 +192,7 @@ class HybridSearchIntegrationTest {
 
     private void saveChunk(MortgageDocument doc, int index, String content, float[] embedding) {
         DocumentChunk chunk = new DocumentChunk();
+        chunk.setBrainId(DEFAULT_BRAIN);
         chunk.setDocument(doc);
         chunk.setChunkIndex(index);
         chunk.setContent(content);

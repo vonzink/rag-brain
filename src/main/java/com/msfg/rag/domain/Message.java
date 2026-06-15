@@ -26,6 +26,9 @@ public class Message {
     @GeneratedValue
     private UUID id;
 
+    @Column(name = "brain_id", nullable = false)
+    private UUID brainId;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "conversation_id", nullable = false)
     private Conversation conversation;
@@ -62,6 +65,9 @@ public class Message {
     // --- getters / setters ---
 
     public UUID getId() { return id; }
+
+    public UUID getBrainId() { return brainId; }
+    public void setBrainId(UUID brainId) { this.brainId = brainId; }
 
     public Conversation getConversation() { return conversation; }
     public void setConversation(Conversation conversation) { this.conversation = conversation; }
