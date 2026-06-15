@@ -16,4 +16,26 @@ public final class TestPacks {
         }
         return msfg;
     }
+
+    /** A registry preloaded with one brain id → bundle, for consumer unit tests. */
+    public static DomainPackRegistry registryFor(java.util.UUID brainId, DomainPack pack) {
+        DomainPackRegistry registry =
+                new DomainPackRegistry(org.mockito.Mockito.mock(
+                        com.msfg.rag.repository.BrainRepository.class));
+        registry.preload(brainId, BrainPackBundle.of(pack));
+        return registry;
+    }
+
+    /** A registry preloaded with several brain ids → packs. */
+    public static DomainPackRegistry registryFor(java.util.Map<java.util.UUID, DomainPack> packs) {
+        DomainPackRegistry registry = new DomainPackRegistry(
+                org.mockito.Mockito.mock(com.msfg.rag.repository.BrainRepository.class));
+        packs.forEach((id, p) -> registry.preload(id, BrainPackBundle.of(p)));
+        return registry;
+    }
+
+    /** The default-brain registry (DEFAULT_ID → the real MSFG pack). */
+    public static DomainPackRegistry registry() {
+        return registryFor(com.msfg.rag.TestBrains.DEFAULT_ID, msfg());
+    }
 }
