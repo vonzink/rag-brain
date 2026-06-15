@@ -3,6 +3,7 @@ package com.msfg.rag.service.retrieval;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.msfg.rag.config.RagProperties;
+import com.msfg.rag.pack.CompiledProgram;
 import com.msfg.rag.pack.DomainPack;
 import com.msfg.rag.repository.ChunkSearchResult;
 import com.msfg.rag.repository.DocumentChunkRepository;
@@ -60,18 +61,7 @@ public class RetrievalService {
         this.config = properties.retrieval();
         this.settings = settings;
         this.acronyms = pack.acronymExpansions();
-        this.programs = compilePrograms(pack.programRules());
-    }
-
-    /** A program rule with its word-boundary regexes precompiled. */
-    record CompiledProgram(String name, List<String> keywords, List<java.util.regex.Pattern> patterns) {}
-
-    static List<CompiledProgram> compilePrograms(List<DomainPack.ProgramRule> rules) {
-        return rules.stream().map(r -> new CompiledProgram(
-                r.program(),
-                r.keywords(),
-                r.wordPatterns().stream().map(java.util.regex.Pattern::compile).toList()))
-                .toList();
+        this.programs = CompiledProgram.compile(pack.programRules());
     }
 
     @Transactional(readOnly = true)
@@ -245,7 +235,7 @@ public class RetrievalService {
      * Detects every loan program a piece of text refers to, in priority order
      * defined by the domain pack. A comparison question naming two programs
      * returns both, so neither side is demoted in {@link #toRetrievedChunk}.
-     * Rules come from the domain pack (pre-compiled via {@link #compilePrograms}).
+     * Rules come from the domain pack (pre-compiled via {@link CompiledProgram#compile}).
      */
     static java.util.Set<String> detectPrograms(String text, List<CompiledProgram> programs) {
         java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();

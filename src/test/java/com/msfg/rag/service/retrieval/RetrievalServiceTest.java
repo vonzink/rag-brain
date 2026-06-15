@@ -13,8 +13,8 @@ class RetrievalServiceTest {
 
     private static final java.util.Map<String, String> ACRONYMS =
             TestPacks.msfg().acronymExpansions();
-    private static final java.util.List<RetrievalService.CompiledProgram> PROGRAMS =
-            RetrievalService.compilePrograms(TestPacks.msfg().programRules());
+    private static final java.util.List<com.msfg.rag.pack.CompiledProgram> PROGRAMS =
+            com.msfg.rag.pack.CompiledProgram.compile(TestPacks.msfg().programRules());
 
     @Test
     void orQueryDropsStopwordsAndOrsTerms() {
