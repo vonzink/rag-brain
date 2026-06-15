@@ -3,6 +3,7 @@ import { HashRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { AuthError, adminKey, api } from "./api";
 import { Stats } from "./types";
 import Corpus from "./screens/Corpus";
+import Brains from "./screens/Brains";
 import Settings from "./screens/Settings";
 import Rules from "./screens/Rules";
 import TestConsole from "./screens/TestConsole";
@@ -59,6 +60,7 @@ export default function App() {
           </div>
           <nav className="nav">
             <NavLink to="/corpus">Corpus</NavLink>
+            <NavLink to="/brains">Brains</NavLink>
             <NavLink to="/settings">Settings</NavLink>
             <NavLink to="/rules">Rules</NavLink>
             <NavLink to="/console">Test console</NavLink>
@@ -72,6 +74,7 @@ export default function App() {
           <Routes>
             <Route path="/corpus" element={<Corpus stats={stats} onCorpusChanged={() =>
               api.get<Stats>("/api/ai/admin/stats").then(setStats).catch(() => undefined)} />} />
+            <Route path="/brains" element={<Brains />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/console" element={<TestConsole slug={stats?.brain.slug ?? "mortgage"} />} />

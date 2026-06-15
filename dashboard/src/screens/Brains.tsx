@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { brainsApi } from "../api";
-import { BrainAdminDto, SyncReport } from "../types";
+import { api, brainsApi } from "../api";
+import { BrainAdminDto, BrainCreateRequest, SettingsResponse, SyncReport } from "../types";
 import { ErrorNote, Pill } from "../components";
 
 function sourceSummary(b: BrainAdminDto): string {
@@ -14,12 +14,43 @@ export default function Brains() {
   const [report, setReport] = useState<SyncReport | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [providers, setProviders] = useState<string[]>([]);
+  const blankForm: BrainCreateRequest = {
+    slug: "", displayName: "", packRef: "packs/msfg-mortgage", sourceType: "local",
+    s3Bucket: null, s3Prefix: null, s3Region: null, localPath: "",
+    answerProvider: "anthropic", answerModel: "", utilityProvider: "openai", utilityModel: "",
+  };
+  const [form, setForm] = useState<BrainCreateRequest>(blankForm);
+  const [creating, setCreating] = useState(false);
 
   const reload = useCallback(() => {
     brainsApi.list().then(setBrains).catch((e) => setError((e as Error).message));
   }, []);
 
   useEffect(reload, [reload]);
+
+  useEffect(() => {
+    api.get<SettingsResponse>("/api/ai/admin/settings")
+      .then((s) => setProviders(s.providers.filter((p) => p.configured).map((p) => p.name)))
+      .catch(() => setProviders([]));
+  }, []);
+
+  function set<K extends keyof BrainCreateRequest>(k: K, v: BrainCreateRequest[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function create() {
+    setCreating(true); setError(null);
+    try {
+      await brainsApi.create(form);
+      setForm(blankForm);
+      reload();
+    } catch (e) { setError((e as Error).message); }
+    finally { setCreating(false); }
+  }
+
+  const providerOptions = (current: string) =>
+    providers.includes(current) || !current ? providers : [current, ...providers];
 
   async function setActive(b: BrainAdminDto) {
     setBusy(b.id); setError(null);
@@ -45,6 +76,82 @@ export default function Brains() {
         <span className="muted">create a brain, point it at a folder or bucket, sync, then set active</span>
       </header>
       <ErrorNote message={error} />
+      <div className="card">
+        <h2>Create brain</h2>
+        <div className="setting-row">
+          <label>Display name</label>
+          <input value={form.displayName} onChange={(e) => set("displayName", e.target.value)} />
+        </div>
+        <div className="setting-row">
+          <label>Slug (lowercase, a–z 0–9 -)</label>
+          <input value={form.slug} onChange={(e) => set("slug", e.target.value)}
+                 placeholder="lending" />
+        </div>
+        <div className="setting-row">
+          <label>Pack ref</label>
+          <input value={form.packRef} onChange={(e) => set("packRef", e.target.value)} />
+        </div>
+        <div className="setting-row">
+          <label>Source</label>
+          <div className="mode-toggle">
+            <button className={form.sourceType === "local" ? "on" : ""}
+                    onClick={() => set("sourceType", "local")}>Local folder</button>
+            <button className={form.sourceType === "s3" ? "on" : ""}
+                    onClick={() => set("sourceType", "s3")}>S3</button>
+          </div>
+        </div>
+        {form.sourceType === "local" ? (
+          <div className="setting-row">
+            <label>Folder path</label>
+            <input value={form.localPath ?? ""} onChange={(e) => set("localPath", e.target.value)}
+                   placeholder="/Users/you/corpora/lending" />
+          </div>
+        ) : (
+          <>
+            <div className="setting-row">
+              <label>S3 bucket</label>
+              <input value={form.s3Bucket ?? ""} onChange={(e) => set("s3Bucket", e.target.value)} />
+            </div>
+            <div className="setting-row">
+              <label>S3 prefix</label>
+              <input value={form.s3Prefix ?? ""} onChange={(e) => set("s3Prefix", e.target.value)} />
+            </div>
+            <div className="setting-row">
+              <label>S3 region</label>
+              <input value={form.s3Region ?? ""} onChange={(e) => set("s3Region", e.target.value)} />
+            </div>
+          </>
+        )}
+        <div className="setting-row">
+          <label>Answer provider</label>
+          <select value={form.answerProvider} onChange={(e) => set("answerProvider", e.target.value)}>
+            {providerOptions(form.answerProvider).map((p) => <option key={p}>{p}</option>)}
+          </select>
+        </div>
+        <div className="setting-row">
+          <label>Answer model</label>
+          <input value={form.answerModel} onChange={(e) => set("answerModel", e.target.value)}
+                 placeholder="blank = provider default" />
+        </div>
+        <div className="setting-row">
+          <label>Utility provider</label>
+          <select value={form.utilityProvider} onChange={(e) => set("utilityProvider", e.target.value)}>
+            {providerOptions(form.utilityProvider).map((p) => <option key={p}>{p}</option>)}
+          </select>
+        </div>
+        <div className="setting-row">
+          <label>Utility model</label>
+          <input value={form.utilityModel} onChange={(e) => set("utilityModel", e.target.value)}
+                 placeholder="blank = provider default" />
+        </div>
+        <div className="setting-row">
+          <button className="btn-primary" onClick={create}
+                  disabled={creating || !form.slug.trim() || !form.displayName.trim()
+                            || (form.sourceType === "local" ? !form.localPath?.trim() : !form.s3Bucket?.trim())}>
+            {creating ? "Creating…" : "Create brain"}
+          </button>
+        </div>
+      </div>
       {report && (
         <div className="card sync-report">
           <div className="sync-summary">
