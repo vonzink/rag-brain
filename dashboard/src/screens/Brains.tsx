@@ -91,6 +91,7 @@ export default function Brains() {
           <label>Pack ref</label>
           <input value={form.packRef} onChange={(e) => set("packRef", e.target.value)} />
         </div>
+        <p className="muted">The pack's internal <code>slug</code> must equal this brain's slug. Copy <code>packs/msfg-mortgage</code> to a new folder, set its <code>slug</code>, and point here.</p>
         <div className="setting-row">
           <label>Source</label>
           <div className="mode-toggle">
