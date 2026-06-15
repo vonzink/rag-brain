@@ -20,6 +20,7 @@ class AdminApiKeyFilterTest {
     void gatesDocumentsAndAdminSurfaces() {
         assertFalse(filter.shouldNotFilter(get("/api/ai/documents")));
         assertFalse(filter.shouldNotFilter(get("/api/ai/admin/settings")));
+        assertFalse(filter.shouldNotFilter(get("/api/ai/admin/brains")));
         assertTrue(filter.shouldNotFilter(get("/api/ai/mortgage/ask")));
         assertTrue(filter.shouldNotFilter(get("/api/ai/conversations/abc")));
     }
