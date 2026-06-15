@@ -3,8 +3,9 @@ package com.msfg.rag.service.retrieval;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.msfg.rag.config.RagProperties;
+import com.msfg.rag.pack.BrainPackBundle;
 import com.msfg.rag.pack.CompiledProgram;
-import com.msfg.rag.pack.DomainPack;
+import com.msfg.rag.pack.DomainPackRegistry;
 import com.msfg.rag.repository.ChunkSearchResult;
 import com.msfg.rag.repository.DocumentChunkRepository;
 import com.msfg.rag.service.ai.RuntimeSettings;
@@ -44,15 +45,14 @@ public class RetrievalService {
     private final ObjectMapper objectMapper;
     private final RagProperties.Retrieval config;
     private final RuntimeSettings settings;
-    private final Map<String, String> acronyms;
-    private final List<CompiledProgram> programs;
+    private final DomainPackRegistry packRegistry;
 
     public RetrievalService(DocumentChunkRepository chunkRepository,
                             EmbeddingService embeddingService,
                             RerankerService rerankerService,
                             ObjectMapper objectMapper,
                             RagProperties properties,
-                            DomainPack pack,
+                            DomainPackRegistry packRegistry,
                             RuntimeSettings settings) {
         this.chunkRepository = chunkRepository;
         this.embeddingService = embeddingService;
@@ -60,8 +60,7 @@ public class RetrievalService {
         this.objectMapper = objectMapper;
         this.config = properties.retrieval();
         this.settings = settings;
-        this.acronyms = pack.acronymExpansions();
-        this.programs = CompiledProgram.compile(pack.programRules());
+        this.packRegistry = packRegistry;
     }
 
     @Transactional(readOnly = true)
@@ -69,6 +68,10 @@ public class RetrievalService {
         if (question == null || question.isBlank()) {
             return RetrievalResult.empty();
         }
+
+        BrainPackBundle bundle = packRegistry.bundle(brainId);
+        Map<String, String> acronyms = bundle.acronyms();
+        List<CompiledProgram> programs = bundle.programs();
 
         boolean rerank = settings.rerankEnabled();
         int topK = settings.topK();
@@ -110,7 +113,7 @@ public class RetrievalService {
 
         java.util.Set<String> questionPrograms = detectPrograms(question, programs);
         List<RetrievedChunk> ranked = merged.values().stream()
-                .map(hit -> toRetrievedChunk(hit, questionPrograms))
+                .map(hit -> toRetrievedChunk(hit, questionPrograms, programs))
                 .sorted(Comparator.comparingDouble(RetrievedChunk::combinedScore).reversed())
                 .limit(candidatePool)
                 .toList();
@@ -133,7 +136,8 @@ public class RetrievalService {
         return new RetrievalResult(ranked, confidence, sufficient);
     }
 
-    private RetrievedChunk toRetrievedChunk(MutableHit hit, java.util.Set<String> questionPrograms) {
+    private RetrievedChunk toRetrievedChunk(MutableHit hit, java.util.Set<String> questionPrograms,
+                                            List<CompiledProgram> programs) {
         double combined = config.vectorWeight() * hit.vectorScore
                 + config.keywordWeight() * hit.keywordScore;
 
