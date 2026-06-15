@@ -4,6 +4,7 @@ import com.msfg.rag.domain.Brain;
 import com.msfg.rag.pack.DomainPack;
 import com.msfg.rag.pack.DomainPackLoader;
 import com.msfg.rag.pack.DomainPackRegistry;
+import com.msfg.rag.pack.PackTemplateService;
 import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.service.ai.ModelRouterService;
 import com.msfg.rag.service.sync.SyncReport;
@@ -59,13 +60,16 @@ public class BrainAdminController {
     private final SyncService syncService;
     private final DomainPackRegistry packRegistry;
     private final ModelRouterService router;
+    private final PackTemplateService packTemplate;
 
     public BrainAdminController(BrainRepository brains, SyncService syncService,
-                               DomainPackRegistry packRegistry, ModelRouterService router) {
+                               DomainPackRegistry packRegistry, ModelRouterService router,
+                               PackTemplateService packTemplate) {
         this.brains = brains;
         this.syncService = syncService;
         this.packRegistry = packRegistry;
         this.router = router;
+        this.packTemplate = packTemplate;
     }
 
     @GetMapping
@@ -87,7 +91,8 @@ public class BrainAdminController {
             String slug, String displayName, String packRef, String sourceType,
             String s3Bucket, String s3Prefix, String s3Region, String localPath,
             String answerProvider, String answerModel,
-            String utilityProvider, String utilityModel) {}
+            String utilityProvider, String utilityModel,
+            String disclaimer) {}
 
     @PostMapping
     public BrainDto create(@RequestBody CreateBrainRequest req) {
@@ -99,12 +104,20 @@ public class BrainAdminController {
             throw new IllegalArgumentException("A brain with slug '" + slug + "' already exists");
         }
         requireText("displayName", req.displayName());
-        requireText("packRef", req.packRef());
         requireSourceBinding(req.sourceType(), req.localPath(), req.s3Bucket());
-        validatePack(req.packRef().trim(), slug);
+
+        String packRef;
+        if (isBlank(req.packRef())) {
+            // Frictionless path: auto-generate a slug-matched neutral starter pack.
+            // generate() validates the result via DomainPackLoader, so no second validatePack.
+            packRef = packTemplate.generate(slug, req.displayName().trim(), effectiveDisclaimer(req.disclaimer()));
+        } else {
+            packRef = req.packRef().trim();
+            validatePack(packRef, slug);   // unchanged explicit-pack path (load + slug-match)
+        }
 
         Brain brain = new Brain(UUID.randomUUID(), slug, req.displayName().trim());
-        apply(brain, req.packRef(), req.sourceType(), req.s3Bucket(), req.s3Prefix(), req.s3Region(),
+        apply(brain, packRef, req.sourceType(), req.s3Bucket(), req.s3Prefix(), req.s3Region(),
                 req.localPath(), req.answerProvider(), req.answerModel(),
                 req.utilityProvider(), req.utilityModel());
         brain.setDefault(false);   // activation is a separate, explicit action
@@ -237,6 +250,12 @@ public class BrainAdminController {
         } else {
             throw new IllegalArgumentException("sourceType must be 'local' or 's3' (got '" + sourceType + "')");
         }
+    }
+
+    private static final String DEFAULT_DISCLAIMER =
+            "Educational use only — verify against the source documents.";
+    private static String effectiveDisclaimer(String d) {
+        return isBlank(d) ? DEFAULT_DISCLAIMER : d.trim();
     }
 
     private static void requireText(String field, String v) {

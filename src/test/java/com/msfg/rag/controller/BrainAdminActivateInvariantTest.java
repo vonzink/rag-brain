@@ -3,6 +3,7 @@ package com.msfg.rag.controller;
 import com.msfg.rag.TestBrains;
 import com.msfg.rag.domain.Brain;
 import com.msfg.rag.pack.DomainPackRegistry;
+import com.msfg.rag.pack.PackTemplateService;
 import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.service.ai.ModelRouterService;
 import com.msfg.rag.service.sync.SyncService;
@@ -38,7 +39,8 @@ class BrainAdminActivateInvariantTest {
     @Test
     void activateFlipsTheDefaultWithoutViolatingTheUniqueIndex() {
         BrainAdminController controller = new BrainAdminController(
-                brains, mock(SyncService.class), mock(DomainPackRegistry.class), mock(ModelRouterService.class));
+                brains, mock(SyncService.class), mock(DomainPackRegistry.class), mock(ModelRouterService.class),
+                mock(PackTemplateService.class));
 
         UUID secondId = UUID.randomUUID();
         Brain second = new Brain(secondId, "lending", "Lending Brain");

@@ -2,6 +2,7 @@ package com.msfg.rag.controller;
 
 import com.msfg.rag.domain.Brain;
 import com.msfg.rag.pack.DomainPackRegistry;
+import com.msfg.rag.pack.PackTemplateService;
 import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.service.ai.ModelRouterService;
 import com.msfg.rag.service.sync.SyncService;
@@ -15,7 +16,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class BrainAdminControllerTest {
@@ -24,8 +29,9 @@ class BrainAdminControllerTest {
     private final SyncService syncService = mock(SyncService.class);
     private final DomainPackRegistry packRegistry = mock(DomainPackRegistry.class);
     private final ModelRouterService router = mock(ModelRouterService.class);
+    private final PackTemplateService packTemplate = mock(PackTemplateService.class);
     private final BrainAdminController controller =
-            new BrainAdminController(brains, syncService, packRegistry, router);
+            new BrainAdminController(brains, syncService, packRegistry, router, packTemplate);
 
     private Brain brain(UUID id, String slug, boolean isDefault, boolean active) {
         Brain b = new Brain(id, slug, slug + " brain");
@@ -76,7 +82,7 @@ class BrainAdminControllerTest {
 
     /** Controller whose pack check is a no-op, so source/slug cases never touch the filesystem. */
     private BrainAdminController noPackCheck() {
-        return new BrainAdminController(brains, syncService, packRegistry, router) {
+        return new BrainAdminController(brains, syncService, packRegistry, router, packTemplate) {
             @Override void validatePack(String packRef, String slug) { /* accept */ }
         };
     }
@@ -89,7 +95,7 @@ class BrainAdminControllerTest {
         BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
                 "lending", "Lending Brain", "packs/test-pack", "local",
                 null, null, null, "/corpora/lending",
-                "anthropic", "claude-haiku-4-5", "openai", "gpt-4.1-nano");
+                "anthropic", "claude-haiku-4-5", "openai", "gpt-4.1-nano", null);
 
         BrainAdminController.BrainDto dto = noPackCheck().create(req);
 
@@ -117,7 +123,7 @@ class BrainAdminControllerTest {
     void createRejectsLocalWithoutPath() {
         BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
                 "lending", "Lending", "packs/test-pack", "local",
-                null, null, null, "   ", "anthropic", "m", "openai", "u");
+                null, null, null, "   ", "anthropic", "m", "openai", "u", null);
         assertThrows(IllegalArgumentException.class, () -> controller.create(req));
     }
 
@@ -125,7 +131,7 @@ class BrainAdminControllerTest {
     void createRejectsS3WithoutBucket() {
         BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
                 "lending", "Lending", "packs/test-pack", "s3",
-                "", "p/", "us-west-1", null, "anthropic", "m", "openai", "u");
+                "", "p/", "us-west-1", null, "anthropic", "m", "openai", "u", null);
         assertThrows(IllegalArgumentException.class, () -> controller.create(req));
     }
 
@@ -136,7 +142,7 @@ class BrainAdminControllerTest {
         // Real on-disk fixture pack (slug: testco). Brain slug matches -> passes.
         BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
                 "testco", "Test Co", "src/test/resources/packs/test-pack", "local",
-                null, null, null, "/corpora/testco", "anthropic", "m", "openai", "u");
+                null, null, null, "/corpora/testco", "anthropic", "m", "openai", "u", null);
         assertEquals("testco", controller.create(req).slug());
     }
 
@@ -146,8 +152,48 @@ class BrainAdminControllerTest {
         // Same real pack (slug: testco) but brain slug differs -> 400.
         BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
                 "mismatch", "Mismatch", "src/test/resources/packs/test-pack", "local",
-                null, null, null, "/corpora/mismatch", "anthropic", "m", "openai", "u");
+                null, null, null, "/corpora/mismatch", "anthropic", "m", "openai", "u", null);
         assertThrows(IllegalArgumentException.class, () -> controller.create(req));
+    }
+
+    @Test
+    void createWithoutPackRefGeneratesPackAndUsesIt() {
+        when(brains.findBySlug("acme")).thenReturn(Optional.empty());
+        when(brains.save(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(packTemplate.generate(eq("acme"), eq("Acme"), anyString())).thenReturn("packs/acme");
+
+        var req = new BrainAdminController.CreateBrainRequest(
+                "acme", "Acme", null /* no packRef */, "local",
+                null, null, null, "/corpora/acme",
+                "anthropic", "m", "openai", "u", null /* disclaimer */);
+
+        var dto = noPackCheck().create(req);   // validatePack no-op; generate path uses the mock
+        assertEquals("acme", dto.slug());
+        assertEquals("packs/acme", dto.packRef());
+        verify(packTemplate).generate(eq("acme"), eq("Acme"), anyString());
+    }
+
+    @Test
+    void createWithoutPackRefPassesDisclaimerThrough() {
+        when(brains.findBySlug("acme")).thenReturn(Optional.empty());
+        when(brains.save(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(packTemplate.generate(eq("acme"), eq("Acme"), eq("Custom note."))).thenReturn("packs/acme");
+        var req = new BrainAdminController.CreateBrainRequest(
+                "acme", "Acme", "", "local", null, null, null, "/c/acme",
+                "anthropic", "m", "openai", "u", "Custom note.");
+        noPackCheck().create(req);
+        verify(packTemplate).generate("acme", "Acme", "Custom note.");
+    }
+
+    @Test
+    void createWithExplicitPackRefDoesNotGenerate() {
+        when(brains.findBySlug("testco")).thenReturn(Optional.empty());
+        when(brains.save(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
+        var req = new BrainAdminController.CreateBrainRequest(
+                "testco", "Test Co", "src/test/resources/packs/test-pack", "local",
+                null, null, null, "/c/testco", "anthropic", "m", "openai", "u", null);
+        assertEquals("testco", controller.create(req).slug());   // real validatePack path
+        verifyNoInteractions(packTemplate);
     }
 
     // helper
@@ -155,7 +201,7 @@ class BrainAdminControllerTest {
         return new BrainAdminController.CreateBrainRequest(
                 slug, "Display", "packs/test-pack", sourceType,
                 "bucket", "p/", "us-west-1", "/corpora/x",
-                "anthropic", "m", "openai", "u");
+                "anthropic", "m", "openai", "u", null);
     }
 
     // ---- Task 3: update ----
@@ -169,7 +215,7 @@ class BrainAdminControllerTest {
         when(brains.findBySlug("lending")).thenReturn(Optional.of(existing)); // self -> allowed
         when(brains.save(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        BrainAdminController c = new BrainAdminController(brains, syncService, packRegistry, router) {
+        BrainAdminController c = new BrainAdminController(brains, syncService, packRegistry, router, packTemplate) {
             @Override void validatePack(String packRef, String slug) { /* accept */ }
         };
         BrainAdminController.UpdateBrainRequest req = new BrainAdminController.UpdateBrainRequest(
@@ -187,7 +233,7 @@ class BrainAdminControllerTest {
         BrainAdminController.UpdateBrainRequest req = new BrainAdminController.UpdateBrainRequest(
                 "mortgage", "X", "packs/test-pack", "local",
                 null, null, null, "/x", "anthropic", "m", "openai", "u");
-        BrainAdminController c = new BrainAdminController(brains, syncService, packRegistry, router) {
+        BrainAdminController c = new BrainAdminController(brains, syncService, packRegistry, router, packTemplate) {
             @Override void validatePack(String packRef, String slug) { }
         };
         assertThrows(IllegalArgumentException.class, () -> c.update(id, req));
