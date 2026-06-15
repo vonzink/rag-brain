@@ -8,6 +8,7 @@ import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.service.ai.ModelRouterService;
 import com.msfg.rag.service.sync.SyncReport;
 import com.msfg.rag.service.sync.SyncService;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -177,6 +178,17 @@ public class BrainAdminController {
             throw new IllegalArgumentException("Unknown brain: " + id);
         }
         return syncService.sync(dryRun, id);
+    }
+
+    @DeleteMapping("/{id}")
+    public BrainDto softDelete(@PathVariable UUID id) {
+        Brain brain = brains.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown brain: " + id));
+        if (brain.isDefault()) {
+            throw new IllegalArgumentException("Cannot delete the default brain; activate another brain first");
+        }
+        brain.setActive(false);          // soft delete — never hard-delete
+        return BrainDto.from(brains.save(brain));
     }
 
     /** Loads the pack at packRef and asserts its slug equals the brain slug — clean 400 on any problem. */

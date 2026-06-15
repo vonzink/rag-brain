@@ -257,4 +257,23 @@ class BrainAdminControllerTest {
         when(brains.findById(id)).thenReturn(Optional.empty());
         assertThrows(IllegalArgumentException.class, () -> controller.sync(id, false));
     }
+
+    // ---- Task 6: soft-delete ----
+
+    @Test
+    void deleteSoftDeletesByDeactivating() {
+        UUID id = UUID.randomUUID();
+        Brain b = brain(id, "lending", false, true);
+        when(brains.findById(id)).thenReturn(Optional.of(b));
+        when(brains.save(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
+        assertEquals(false, controller.softDelete(id).isActive());
+        assertFalse(b.isActive());
+    }
+
+    @Test
+    void deleteRefusesTheDefaultBrain() {
+        UUID id = UUID.randomUUID();
+        when(brains.findById(id)).thenReturn(Optional.of(brain(id, "mortgage", true, true)));
+        assertThrows(IllegalArgumentException.class, () -> controller.softDelete(id));
+    }
 }

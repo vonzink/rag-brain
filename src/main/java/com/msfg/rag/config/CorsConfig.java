@@ -42,7 +42,7 @@ public class CorsConfig implements WebMvcConfigurer {
 
         registry.addMapping("/api/ai/admin/**")
                 .allowedOrigins(allowedOrigins)
-                .allowedMethods("GET", "PUT", "POST", "OPTIONS")
+                .allowedMethods("GET", "PUT", "POST", "DELETE", "OPTIONS")
                 .allowedHeaders("Content-Type", "X-Admin-Api-Key")
                 .maxAge(3600);
 
