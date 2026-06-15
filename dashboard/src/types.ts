@@ -56,3 +56,36 @@ export interface RuleRevisionDto {
   revision: number; createdAt: string; createdBy: string;
   reverted: boolean; content: string | null;
 }
+
+export interface BrainAdminDto {
+  id: string;
+  slug: string;
+  displayName: string;
+  packRef: string | null;
+  sourceType: string | null;       // "local" | "s3" | null
+  s3Bucket: string | null;
+  s3Prefix: string | null;
+  s3Region: string | null;
+  localPath: string | null;
+  answerProvider: string | null;
+  answerModel: string | null;
+  utilityProvider: string | null;
+  utilityModel: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
+export interface BrainCreateRequest {
+  slug: string;
+  displayName: string;
+  packRef: string;
+  sourceType: "local" | "s3";
+  s3Bucket: string | null;
+  s3Prefix: string | null;
+  s3Region: string | null;
+  localPath: string | null;
+  answerProvider: string;
+  answerModel: string;
+  utilityProvider: string;
+  utilityModel: string;
+}

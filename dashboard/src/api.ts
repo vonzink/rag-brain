@@ -1,3 +1,5 @@
+import { BrainAdminDto, BrainCreateRequest, SyncReport } from "./types";
+
 const KEY_STORAGE = "rag-brain-admin-key";
 
 export class AuthError extends Error {
@@ -35,6 +37,18 @@ export const api = {
     request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+  del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   upload: <T>(path: string, form: FormData) =>
     request<T>(path, { method: "POST", body: form }),
+};
+
+export const brainsApi = {
+  list: () => api.get<BrainAdminDto[]>("/api/ai/admin/brains"),
+  create: (body: BrainCreateRequest) => api.post<BrainAdminDto>("/api/ai/admin/brains", body),
+  update: (id: string, body: BrainCreateRequest) =>
+    api.put<BrainAdminDto>(`/api/ai/admin/brains/${id}`, body),
+  activate: (id: string) => api.post<BrainAdminDto>(`/api/ai/admin/brains/${id}/activate`),
+  sync: (id: string, dryRun: boolean) =>
+    api.post<SyncReport>(`/api/ai/admin/brains/${id}/sync?dryRun=${dryRun}`),
+  remove: (id: string) => api.del<BrainAdminDto>(`/api/ai/admin/brains/${id}`),
 };

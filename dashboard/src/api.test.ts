@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, adminKey, AuthError } from "./api";
+import { api, adminKey, AuthError, brainsApi } from "./api";
 
 const store = new Map<string, string>();
 
@@ -45,5 +45,17 @@ describe("api client", () => {
 
     await expect(api.put("/api/ai/admin/settings", {})).rejects.toThrow(
       "retrieval.top-k must be between 1 and 50");
+  });
+
+  it("posts to the per-brain activate endpoint by id", async () => {
+    adminKey.set("k");
+    const fetchMock = fetchReturning(200, { id: "abc", slug: "lending", isDefault: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await brainsApi.activate("abc");
+
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(call[0]).toBe("/api/ai/admin/brains/abc/activate");
+    expect((call[1].method ?? "GET")).toBe("POST");
   });
 });
