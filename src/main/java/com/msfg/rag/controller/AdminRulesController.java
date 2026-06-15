@@ -54,7 +54,7 @@ public class AdminRulesController {
      */
     @GetMapping
     public Map<String, RuleState> getState() {
-        return shortKeyMap(rulesService.state());
+        return shortKeyMap(rulesService.state(brainResolver.resolve(null).getId()));
     }
 
     // ── PUT /api/ai/admin/rules/{key} ────────────────────────────────────────
@@ -76,7 +76,7 @@ public class AdminRulesController {
             throw new IllegalArgumentException("content must be non-blank for key: " + key);
         }
         rulesService.save(key, body.content(), UPDATED_BY);
-        return shortKeyMap(rulesService.state());
+        return shortKeyMap(rulesService.state(brainResolver.resolve(null).getId()));
     }
 
     // ── POST /api/ai/admin/rules/{key}/revert ────────────────────────────────
@@ -90,7 +90,7 @@ public class AdminRulesController {
     @PostMapping("/{key}/revert")
     public Map<String, RuleState> revertRule(@PathVariable String key) {
         rulesService.revert(key, UPDATED_BY);
-        return shortKeyMap(rulesService.state());
+        return shortKeyMap(rulesService.state(brainResolver.resolve(null).getId()));
     }
 
     // ── GET /api/ai/admin/rules/{key}/history ────────────────────────────────

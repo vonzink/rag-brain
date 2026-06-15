@@ -213,8 +213,8 @@ class MsfgGoldenPackTest {
     @Test
     void defaultAssemblyIsByteExact() {
         RulesService rulesService = mock(RulesService.class);
-        when(rulesService.effectiveHard()).thenReturn(PACK.hardRules());
-        when(rulesService.effectiveGuidance()).thenReturn(PACK.guidance());
+        when(rulesService.effectiveHard(DEFAULT_ID)).thenReturn(PACK.hardRules());
+        when(rulesService.effectiveGuidance(DEFAULT_ID)).thenReturn(PACK.guidance());
 
         String assembled = new PromptBuilderService(TestPacks.registry(), rulesService).build("Q", List.of(), DEFAULT_ID);
 

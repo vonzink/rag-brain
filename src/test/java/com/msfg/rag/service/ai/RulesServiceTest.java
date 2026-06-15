@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.msfg.rag.TestBrains.DEFAULT_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -28,7 +29,7 @@ class RulesServiceTest {
     private final RuleRevisionRepository repo = mock(RuleRevisionRepository.class);
 
     private RulesService service() {
-        return new RulesService(repo, TestPacks.msfg());
+        return new RulesService(repo, TestPacks.registry());
     }
 
     // ── 1. Falls back to pack defaults when repo is empty ────────────────────
@@ -38,10 +39,10 @@ class RulesServiceTest {
         when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(any())).thenReturn(Optional.empty());
         RulesService s = service();
 
-        assertEquals(TestPacks.msfg().hardRules(), s.effectiveHard());
-        assertEquals(TestPacks.msfg().guidance(),   s.effectiveGuidance());
+        assertEquals(TestPacks.msfg().hardRules(), s.effectiveHard(DEFAULT_ID));
+        assertEquals(TestPacks.msfg().guidance(),   s.effectiveGuidance(DEFAULT_ID));
 
-        Map<String, RulesService.RuleState> state = s.state();
+        Map<String, RulesService.RuleState> state = s.state(DEFAULT_ID);
         assertEquals("pack", state.get("rules.hard").source());
         assertEquals("pack", state.get("rules.guidance").source());
     }
@@ -57,9 +58,9 @@ class RulesServiceTest {
                 .thenReturn(Optional.empty());
         RulesService s = service();
 
-        assertEquals("CUSTOM HARD", s.effectiveHard());
-        assertEquals("custom", s.state().get("rules.hard").source());
-        assertEquals("pack",   s.state().get("rules.guidance").source());
+        assertEquals("CUSTOM HARD", s.effectiveHard(DEFAULT_ID));
+        assertEquals("custom", s.state(DEFAULT_ID).get("rules.hard").source());
+        assertEquals("pack",   s.state(DEFAULT_ID).get("rules.guidance").source());
     }
 
     // ── 3. Null-content revision reverts to pack default ─────────────────────
@@ -79,10 +80,10 @@ class RulesServiceTest {
         RulesService s = service();
 
         // effective content falls back to pack
-        assertEquals(TestPacks.msfg().hardRules(), s.effectiveHard());
+        assertEquals(TestPacks.msfg().hardRules(), s.effectiveHard(DEFAULT_ID));
 
         // source is "pack" but revert revision attribution is preserved
-        RulesService.RuleState st = s.state().get("rules.hard");
+        RulesService.RuleState st = s.state(DEFAULT_ID).get("rules.hard");
         assertEquals("pack", st.source());
         assertEquals("admin-api", st.updatedBy());
         assertNotNull(st.updatedAt(), "revert revision's timestamp should be surfaced");
@@ -95,7 +96,7 @@ class RulesServiceTest {
         // Before save: empty
         when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(any())).thenReturn(Optional.empty());
         RulesService s = service();
-        s.effectiveHard(); // prime cache → 1 findFirst for rules.hard
+        s.effectiveHard(DEFAULT_ID); // prime cache → 1 findFirst for rules.hard
 
         // After save the cache is invalidated; next read re-queries
         s.save("rules.hard", "X", "admin-api");
@@ -105,7 +106,7 @@ class RulesServiceTest {
                         && "X".equals(r.getContent())
                         && "admin-api".equals(r.getCreatedBy())));
 
-        s.effectiveHard(); // must hit repo again
+        s.effectiveHard(DEFAULT_ID); // must hit repo again
         // prime + post-save re-read = 2 findFirst calls for rules.hard
         verify(repo, times(2)).findFirstByRuleKeyOrderByCreatedAtDescIdDesc("rules.hard");
     }
@@ -117,10 +118,10 @@ class RulesServiceTest {
         when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(any())).thenReturn(Optional.empty());
         RulesService s = service();
 
-        s.effectiveHard();
-        s.effectiveGuidance();
-        s.effectiveHard();
-        s.effectiveGuidance();
+        s.effectiveHard(DEFAULT_ID);
+        s.effectiveGuidance(DEFAULT_ID);
+        s.effectiveHard(DEFAULT_ID);
+        s.effectiveGuidance(DEFAULT_ID);
 
         // Both keys loaded in the initial snapshot; subsequent calls must not re-read
         verify(repo, times(1)).findFirstByRuleKeyOrderByCreatedAtDescIdDesc("rules.hard");

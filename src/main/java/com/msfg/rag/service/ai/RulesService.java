@@ -1,7 +1,7 @@
 package com.msfg.rag.service.ai;
 
 import com.msfg.rag.domain.RuleRevision;
-import com.msfg.rag.pack.DomainPack;
+import com.msfg.rag.pack.DomainPackRegistry;
 import com.msfg.rag.repository.RuleRevisionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Live effective text for the two owner-editable rule blocks, read through a
@@ -38,30 +39,31 @@ public class RulesService {
     // ── dependencies ──────────────────────────────────────────────────────────
 
     private final RuleRevisionRepository repo;
-    private final DomainPack pack;
+    private final DomainPackRegistry registry;
 
     // ── cache ─────────────────────────────────────────────────────────────────
 
     private volatile Map<String, Optional<RuleRevision>> cache = Map.of();
     private volatile long cachedAtNanos = Long.MIN_VALUE;
 
-    public RulesService(RuleRevisionRepository repo, DomainPack pack) {
+    public RulesService(RuleRevisionRepository repo, DomainPackRegistry registry) {
         this.repo = repo;
-        this.pack = pack;
+        this.registry = registry;
     }
 
     // ── public accessors ──────────────────────────────────────────────────────
 
-    public String effectiveHard() {
-        return effective("rules.hard", pack.hardRules());
+    public String effectiveHard(UUID brainId) {
+        return effective("rules.hard", registry.bundle(brainId).pack().hardRules());
     }
 
-    public String effectiveGuidance() {
-        return effective("rules.guidance", pack.guidance());
+    public String effectiveGuidance(UUID brainId) {
+        return effective("rules.guidance", registry.bundle(brainId).pack().guidance());
     }
 
     /** Per-key state map for the admin API and dashboard. */
-    public Map<String, RuleState> state() {
+    public Map<String, RuleState> state(UUID brainId) {
+        var pack = registry.bundle(brainId).pack();
         Map<String, Optional<RuleRevision>> snap = snapshot();
         return Map.of(
                 "rules.hard",     toState("rules.hard",     snap.get("rules.hard"),     pack.hardRules()),

@@ -34,8 +34,8 @@ public class PromptBuilderService {
     public String build(String question, List<RetrievedChunk> chunks, UUID brainId) {
         var pack = registry.bundle(brainId).pack();
         return pack.promptTemplate().formatted(
-                rules.effectiveHard(),
-                rules.effectiveGuidance(),
+                rules.effectiveHard(brainId),
+                rules.effectiveGuidance(brainId),
                 formatContext(chunks),
                 question,
                 pack.disclaimer());

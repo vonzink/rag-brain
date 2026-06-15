@@ -23,8 +23,8 @@ class PromptBuilderServiceTest {
     @BeforeEach
     void setUp() {
         rulesService = mock(RulesService.class);
-        when(rulesService.effectiveHard()).thenReturn(TestPacks.msfg().hardRules());
-        when(rulesService.effectiveGuidance()).thenReturn(TestPacks.msfg().guidance());
+        when(rulesService.effectiveHard(DEFAULT_ID)).thenReturn(TestPacks.msfg().hardRules());
+        when(rulesService.effectiveGuidance(DEFAULT_ID)).thenReturn(TestPacks.msfg().guidance());
         promptBuilder = new PromptBuilderService(TestPacks.registry(), rulesService);
     }
 
@@ -87,7 +87,7 @@ class PromptBuilderServiceTest {
 
     @Test
     void customHardRulesReachThePrompt() {
-        when(rulesService.effectiveHard()).thenReturn("ONLY ANSWER IN HAIKU.");
+        when(rulesService.effectiveHard(DEFAULT_ID)).thenReturn("ONLY ANSWER IN HAIKU.");
         String prompt = promptBuilder.build("What is PMI?", List.of(), DEFAULT_ID);
         assertTrue(prompt.contains("ONLY ANSWER IN HAIKU."));
         assertTrue(prompt.contains("What is PMI?"));

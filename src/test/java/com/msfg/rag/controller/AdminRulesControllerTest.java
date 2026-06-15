@@ -38,7 +38,7 @@ class AdminRulesControllerTest {
         RuleState hardState     = new RuleState("rules.hard",     "No fraud.",   "custom", now, "alice");
         RuleState guidanceState = new RuleState("rules.guidance", "Be helpful.", "pack",   null, null);
 
-        when(rulesService.state()).thenReturn(Map.of(
+        when(rulesService.state(any())).thenReturn(Map.of(
                 "rules.hard",     hardState,
                 "rules.guidance", guidanceState));
 
@@ -57,7 +57,7 @@ class AdminRulesControllerTest {
         RuleState savedState    = new RuleState("rules.hard", "Updated.", "custom", now, "admin-api");
         RuleState guidanceState = new RuleState("rules.guidance", "Guidance.", "pack", null, null);
 
-        when(rulesService.state()).thenReturn(Map.of(
+        when(rulesService.state(any())).thenReturn(Map.of(
                 "rules.hard",     savedState,
                 "rules.guidance", guidanceState));
 
@@ -98,7 +98,7 @@ class AdminRulesControllerTest {
         RuleState packState     = new RuleState("rules.hard",     "Pack default.", "pack", now, "admin-api");
         RuleState guidanceState = new RuleState("rules.guidance", "Guidance.",     "pack", null, null);
 
-        when(rulesService.state()).thenReturn(Map.of(
+        when(rulesService.state(any())).thenReturn(Map.of(
                 "rules.hard",     packState,
                 "rules.guidance", guidanceState));
 
