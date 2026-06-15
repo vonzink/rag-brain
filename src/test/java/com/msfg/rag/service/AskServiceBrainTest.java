@@ -3,6 +3,7 @@ package com.msfg.rag.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.msfg.rag.domain.Conversation;
 import com.msfg.rag.dto.AskRequest;
+import com.msfg.rag.pack.DomainPackRegistry;
 import com.msfg.rag.pack.TestPacks;
 import com.msfg.rag.provider.AiResponse;
 import com.msfg.rag.repository.AnswerSourceRepository;
@@ -69,8 +70,10 @@ class AskServiceBrainTest {
             }
             return c;
         });
-        return new AskService(TestPacks.msfg(), classifier, retrieval, promptBuilder, router,
-                new AnswerValidationService(TestPacks.registry()), audit,
+        DomainPackRegistry registry = TestPacks.registryFor(java.util.Map.of(
+                BRAIN_A, TestPacks.msfg(), BRAIN_B, TestPacks.msfg()));
+        return new AskService(registry, classifier, retrieval, promptBuilder, router,
+                new AnswerValidationService(registry), audit,
                 conversations, messages, sources, new ObjectMapper());
     }
 

@@ -3,6 +3,7 @@ package com.msfg.rag.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.msfg.rag.domain.AnswerSource;
 import com.msfg.rag.pack.DomainPack;
+import com.msfg.rag.pack.DomainPackRegistry;
 import com.msfg.rag.domain.Conversation;
 import com.msfg.rag.domain.Message;
 import com.msfg.rag.dto.AskRequest;
@@ -44,7 +45,7 @@ public class AskService {
 
     private static final Logger log = LoggerFactory.getLogger(AskService.class);
 
-    private final DomainPack.CannedAnswers canned;
+    private final DomainPackRegistry packRegistry;
 
     private final QuestionClassifierService questionClassifierService;
     private final RetrievalService retrievalService;
@@ -57,7 +58,7 @@ public class AskService {
     private final AnswerSourceRepository answerSourceRepository;
     private final ObjectMapper objectMapper;
 
-    public AskService(DomainPack pack,
+    public AskService(DomainPackRegistry packRegistry,
                       QuestionClassifierService questionClassifierService,
                       RetrievalService retrievalService,
                       PromptBuilderService promptBuilderService,
@@ -68,7 +69,7 @@ public class AskService {
                       MessageRepository messageRepository,
                       AnswerSourceRepository answerSourceRepository,
                       ObjectMapper objectMapper) {
-        this.canned = pack.guardrails().cannedAnswers();
+        this.packRegistry = packRegistry;
         this.questionClassifierService = questionClassifierService;
         this.retrievalService = retrievalService;
         this.promptBuilderService = promptBuilderService;
@@ -85,6 +86,9 @@ public class AskService {
     public AskResponse ask(AskRequest request, UUID brainId) {
         Conversation conversation = resolveConversation(request, brainId);
         saveMessage(conversation, Message.ROLE_USER, request.question(), null);
+
+        DomainPack.CannedAnswers canned =
+                packRegistry.bundle(brainId).pack().guardrails().cannedAnswers();
 
         // 0. Pre-retrieval guardrail: questions we must not answer are caught
         //    here before any embedding or LLM spend.

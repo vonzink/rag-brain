@@ -1,10 +1,12 @@
 package com.msfg.rag.controller;
 
-import com.msfg.rag.pack.DomainPack;
+import com.msfg.rag.pack.DomainPackRegistry;
 import com.msfg.rag.repository.DocumentChunkRepository;
 import com.msfg.rag.repository.MortgageDocumentRepository;
+import com.msfg.rag.service.BrainResolver;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Brain identity + corpus counts for the dashboard shell and corpus screen. */
@@ -16,20 +18,26 @@ public class AdminStatsController {
     public record CorpusDto(long activeDocuments, long totalDocuments, long chunks) {}
     public record StatsDto(BrainDto brain, CorpusDto corpus) {}
 
-    private final DomainPack pack;
+    private final DomainPackRegistry packRegistry;
+    private final BrainResolver brainResolver;
     private final MortgageDocumentRepository documents;
     private final DocumentChunkRepository chunks;
 
-    public AdminStatsController(DomainPack pack,
+    public AdminStatsController(DomainPackRegistry packRegistry,
+                                BrainResolver brainResolver,
                                 MortgageDocumentRepository documents,
                                 DocumentChunkRepository chunks) {
-        this.pack = pack;
+        this.packRegistry = packRegistry;
+        this.brainResolver = brainResolver;
         this.documents = documents;
         this.chunks = chunks;
     }
 
     @GetMapping
-    public StatsDto stats() {
+    public StatsDto stats(@RequestParam(value = "brain", required = false) String brain) {
+        var resolved = brainResolver.resolve(brain);
+        var pack = packRegistry.bundle(resolved.getId()).pack();
+        // Corpus counts stay global for now; SP4 scopes them by brain_id.
         return new StatsDto(
                 new BrainDto(pack.companyName(), pack.slug()),
                 new CorpusDto(documents.countByActiveTrue(), documents.count(), chunks.count()));

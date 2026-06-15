@@ -4,6 +4,7 @@ import com.msfg.rag.domain.Brain;
 import com.msfg.rag.repository.BrainRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
@@ -30,6 +31,7 @@ public class DomainPackRegistry {
     private final DomainPackLoader loader;
     private final ConcurrentHashMap<UUID, BrainPackBundle> cache = new ConcurrentHashMap<>();
 
+    @Autowired
     public DomainPackRegistry(BrainRepository brains) {
         this(brains, new DomainPackLoader());
     }

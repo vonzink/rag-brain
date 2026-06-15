@@ -92,7 +92,7 @@ class AskServiceTest {
         AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
         when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        return new AskService(TestPacks.msfg(), classifier, retrieval, promptBuilder, router,
+        return new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper());
     }
@@ -120,7 +120,7 @@ class AskServiceTest {
         AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
         when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        return new AskService(TestPacks.msfg(), classifier, retrieval, promptBuilder, router,
+        return new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper());
     }
