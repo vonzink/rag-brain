@@ -43,6 +43,31 @@ class ExtraProvidersConfigTest {
     }
 
     @Test
+    void localProviderRegistersWhenBaseUrlIsSet() {
+        runner.withPropertyValues(
+                        "brain.providers.deepseek.api-key=",
+                        "brain.providers.gemini.api-key=",
+                        "brain.providers.grok.api-key=",
+                        "brain.providers.local.base-url=http://localhost:11434/v1")
+                .run(context -> {
+                    var beans = context.getBeansOfType(OpenAiCompatibleProvider.class);
+                    assertEquals(1, beans.size());
+                    assertEquals("local",
+                            beans.values().iterator().next().getProviderName());
+                });
+    }
+
+    @Test
+    void localProviderAbsentWhenBaseUrlNotSet() {
+        runner.withPropertyValues(
+                        "brain.providers.deepseek.api-key=",
+                        "brain.providers.gemini.api-key=",
+                        "brain.providers.grok.api-key=")
+                .run(context -> assertEquals(0,
+                        context.getBeansOfType(OpenAiCompatibleProvider.class).size()));
+    }
+
+    @Test
     void modelOverrideFallsBackToInstanceDefault() {
         OpenAiCompatibleProvider provider =
                 new OpenAiCompatibleProvider("deepseek", "https://api.deepseek.com", "sk-x", "deepseek-v4-flash");

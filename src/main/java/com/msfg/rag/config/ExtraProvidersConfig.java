@@ -40,4 +40,15 @@ public class ExtraProvidersConfig {
             @Value("${brain.providers.grok.model}") String model) {
         return new OpenAiCompatibleProvider("grok", baseUrl, apiKey, model);
     }
+
+    @Bean
+    @ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${brain.providers.local.base-url:}')")
+    public OpenAiCompatibleProvider localProvider(
+            @Value("${brain.providers.local.base-url}") String baseUrl,
+            @Value("${brain.providers.local.api-key:}") String apiKey,
+            @Value("${brain.providers.local.model:}") String model) {
+        // Local servers (Ollama/LM Studio/vLLM) usually ignore the key; OpenAiApi needs a non-blank one.
+        String key = (apiKey == null || apiKey.isBlank()) ? "not-needed" : apiKey;
+        return new OpenAiCompatibleProvider("local", baseUrl, key, model);
+    }
 }
