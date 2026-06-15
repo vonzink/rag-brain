@@ -192,4 +192,34 @@ class BrainAdminControllerTest {
         };
         assertThrows(IllegalArgumentException.class, () -> c.update(id, req));
     }
+
+    // ---- Task 4: activate ----
+
+    @Test
+    void activateClearsOldDefaultBeforeSettingNew() {
+        UUID oldId = UUID.randomUUID();
+        UUID newId = UUID.randomUUID();
+        Brain old = brain(oldId, "mortgage", true, true);
+        Brain target = brain(newId, "lending", false, true);
+        when(brains.findById(newId)).thenReturn(Optional.of(target));
+        when(brains.findDefaultBrain()).thenReturn(Optional.of(old));
+        when(brains.saveAndFlush(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(brains.save(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        BrainAdminController.BrainDto dto = controller.activate(newId);
+
+        assertEquals(true, dto.isDefault());
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(brains);
+        order.verify(brains).saveAndFlush(old);   // old cleared + flushed first
+        order.verify(brains).save(target);        // then new set
+        assertFalse(old.isDefault());
+        assertEquals(true, target.isDefault());
+    }
+
+    @Test
+    void activateRejectsInactiveBrain() {
+        UUID id = UUID.randomUUID();
+        when(brains.findById(id)).thenReturn(Optional.of(brain(id, "lending", false, false)));
+        assertThrows(IllegalArgumentException.class, () -> controller.activate(id));
+    }
 }

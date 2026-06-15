@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -145,6 +146,26 @@ public class BrainAdminController {
             packRegistry.reload(id);   // next request reloads + re-validates the new pack
         }
         return BrainDto.from(saved);
+    }
+
+    @PostMapping("/{id}/activate")
+    @Transactional
+    public BrainDto activate(@PathVariable UUID id) {
+        Brain target = brains.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown brain: " + id));
+        if (!target.isActive()) {
+            throw new IllegalArgumentException("Cannot activate an inactive brain: " + id);
+        }
+        // Clear the existing default FIRST and flush — the partial unique index
+        // ux_brains_single_default rejects two is_default=true rows at statement time.
+        brains.findDefaultBrain().ifPresent(current -> {
+            if (!current.getId().equals(id)) {
+                current.setDefault(false);
+                brains.saveAndFlush(current);
+            }
+        });
+        target.setDefault(true);
+        return BrainDto.from(brains.save(target));
     }
 
     /** Loads the pack at packRef and asserts its slug equals the brain slug — clean 400 on any problem. */
