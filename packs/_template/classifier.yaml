@@ -1,0 +1,4 @@
+rules:
+  - category: FRAUD
+    patterns:
+      - '\b(fake|forge|forged|falsify|fabricate)\b'
