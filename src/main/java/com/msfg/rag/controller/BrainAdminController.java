@@ -10,6 +10,7 @@ import com.msfg.rag.service.sync.SyncService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -104,6 +106,45 @@ public class BrainAdminController {
         brain.setDefault(false);   // activation is a separate, explicit action
         brain.setActive(true);
         return BrainDto.from(brains.save(brain));
+    }
+
+    /** Update payload — same configurable fields as create. NO id, NO is_default, NO secrets. */
+    public record UpdateBrainRequest(
+            String slug, String displayName, String packRef, String sourceType,
+            String s3Bucket, String s3Prefix, String s3Region, String localPath,
+            String answerProvider, String answerModel,
+            String utilityProvider, String utilityModel) {}
+
+    @PutMapping("/{id}")
+    public BrainDto update(@PathVariable UUID id, @RequestBody UpdateBrainRequest req) {
+        Brain brain = brains.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown brain: " + id));
+
+        String slug = req.slug() == null ? "" : req.slug().trim();
+        if (!SLUG.matcher(slug).matches()) {
+            throw new IllegalArgumentException("slug must match ^[a-z0-9-]+$ (got '" + req.slug() + "')");
+        }
+        brains.findBySlug(slug).ifPresent(other -> {
+            if (!other.getId().equals(id)) {
+                throw new IllegalArgumentException("A brain with slug '" + slug + "' already exists");
+            }
+        });
+        requireText("displayName", req.displayName());
+        requireText("packRef", req.packRef());
+        requireSourceBinding(req.sourceType(), req.localPath(), req.s3Bucket());
+        validatePack(req.packRef().trim(), slug);
+
+        boolean packChanged = !Objects.equals(brain.getPackRef(), trimToNull(req.packRef()));
+        brain.setSlug(slug);
+        brain.setDisplayName(req.displayName().trim());
+        apply(brain, req.packRef(), req.sourceType(), req.s3Bucket(), req.s3Prefix(), req.s3Region(),
+                req.localPath(), req.answerProvider(), req.answerModel(),
+                req.utilityProvider(), req.utilityModel());
+        Brain saved = brains.save(brain);
+        if (packChanged) {
+            packRegistry.reload(id);   // next request reloads + re-validates the new pack
+        }
+        return BrainDto.from(saved);
     }
 
     /** Loads the pack at packRef and asserts its slug equals the brain slug — clean 400 on any problem. */

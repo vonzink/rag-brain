@@ -157,4 +157,39 @@ class BrainAdminControllerTest {
                 "bucket", "p/", "us-west-1", "/corpora/x",
                 "anthropic", "m", "openai", "u");
     }
+
+    // ---- Task 3: update ----
+
+    @Test
+    void updateRevalidatesAndReloadsPackWhenPackRefChanges() {
+        UUID id = UUID.randomUUID();
+        Brain existing = brain(id, "lending", false, true);
+        existing.setPackRef("packs/old");
+        when(brains.findById(id)).thenReturn(Optional.of(existing));
+        when(brains.findBySlug("lending")).thenReturn(Optional.of(existing)); // self -> allowed
+        when(brains.save(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        BrainAdminController c = new BrainAdminController(brains, syncService, packRegistry, router) {
+            @Override void validatePack(String packRef, String slug) { /* accept */ }
+        };
+        BrainAdminController.UpdateBrainRequest req = new BrainAdminController.UpdateBrainRequest(
+                "lending", "Lending", "packs/new", "local",
+                null, null, null, "/corpora/lending", "anthropic", "m", "openai", "u");
+        c.update(id, req);
+        org.mockito.Mockito.verify(packRegistry).reload(id);
+    }
+
+    @Test
+    void updateRejectsSlugTakenByAnotherBrain() {
+        UUID id = UUID.randomUUID();
+        when(brains.findById(id)).thenReturn(Optional.of(brain(id, "lending", false, true)));
+        when(brains.findBySlug("mortgage")).thenReturn(Optional.of(brain(UUID.randomUUID(), "mortgage", true, true)));
+        BrainAdminController.UpdateBrainRequest req = new BrainAdminController.UpdateBrainRequest(
+                "mortgage", "X", "packs/test-pack", "local",
+                null, null, null, "/x", "anthropic", "m", "openai", "u");
+        BrainAdminController c = new BrainAdminController(brains, syncService, packRegistry, router) {
+            @Override void validatePack(String packRef, String slug) { }
+        };
+        assertThrows(IllegalArgumentException.class, () -> c.update(id, req));
+    }
 }
