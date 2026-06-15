@@ -18,3 +18,8 @@ data/
 
 # Logs
 *.log
+
+# Runtime-generated brain packs (keep the committed template + msfg-mortgage)
+/packs/*
+!/packs/msfg-mortgage/
+!/packs/_template/
