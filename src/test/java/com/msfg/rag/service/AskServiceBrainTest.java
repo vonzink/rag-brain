@@ -55,7 +55,7 @@ class AskServiceBrainTest {
     private final AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
 
     private AskService askService() {
-        when(classifier.classify(anyString())).thenReturn(QuestionCategory.EDUCATIONAL);
+        when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
         // Insufficient evidence → short refusal path: still saves conversation,
         // message, sources, and records the audit row — all the writers we care about.
         when(retrieval.retrieve(anyString(), any())).thenReturn(RetrievalResult.empty());

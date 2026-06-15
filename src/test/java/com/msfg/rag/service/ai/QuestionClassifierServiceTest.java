@@ -4,6 +4,7 @@ import com.msfg.rag.pack.TestPacks;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import static com.msfg.rag.TestBrains.DEFAULT_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -12,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class QuestionClassifierServiceTest {
 
-    private final QuestionClassifierService classifier = new QuestionClassifierService(TestPacks.msfg());
+    private final QuestionClassifierService classifier = new QuestionClassifierService(TestPacks.registry());
 
     @ParameterizedTest
     @ValueSource(strings = {
@@ -32,7 +33,7 @@ class QuestionClassifierServiceTest {
             "Do I need tax returns for a conventional loan?"
     })
     void educationalQuestionsProceedToRag(String question) {
-        assertEquals(QuestionCategory.EDUCATIONAL, classifier.classify(question),
+        assertEquals(QuestionCategory.EDUCATIONAL, classifier.classify(question, DEFAULT_ID),
                 "Should be educational: " + question);
     }
 
@@ -46,7 +47,7 @@ class QuestionClassifierServiceTest {
             "Will we be denied because of my credit?"
     })
     void eligibilityQuestionsEscalate(String question) {
-        assertEquals(QuestionCategory.ELIGIBILITY, classifier.classify(question),
+        assertEquals(QuestionCategory.ELIGIBILITY, classifier.classify(question, DEFAULT_ID),
                 "Should escalate as eligibility: " + question);
     }
 
@@ -58,7 +59,7 @@ class QuestionClassifierServiceTest {
             "Is this a breach of contract by the title company?"
     })
     void legalQuestionsEscalate(String question) {
-        assertEquals(QuestionCategory.LEGAL, classifier.classify(question),
+        assertEquals(QuestionCategory.LEGAL, classifier.classify(question, DEFAULT_ID),
                 "Should escalate as legal: " + question);
     }
 
@@ -69,7 +70,7 @@ class QuestionClassifierServiceTest {
             "Can I claim my points on my taxes?"
     })
     void taxQuestionsEscalate(String question) {
-        assertEquals(QuestionCategory.TAX, classifier.classify(question),
+        assertEquals(QuestionCategory.TAX, classifier.classify(question, DEFAULT_ID),
                 "Should escalate as tax: " + question);
     }
 
@@ -81,7 +82,7 @@ class QuestionClassifierServiceTest {
             "What's today's rate?"
     })
     void rateQuestionsEscalate(String question) {
-        assertEquals(QuestionCategory.LIVE_RATES, classifier.classify(question),
+        assertEquals(QuestionCategory.LIVE_RATES, classifier.classify(question, DEFAULT_ID),
                 "Should escalate as live rates: " + question);
     }
 
@@ -96,7 +97,7 @@ class QuestionClassifierServiceTest {
             "Can I borrow the down payment without the lender knowing?"
     })
     void fraudQuestionsAreRefused(String question) {
-        assertEquals(QuestionCategory.FRAUD, classifier.classify(question),
+        assertEquals(QuestionCategory.FRAUD, classifier.classify(question, DEFAULT_ID),
                 "Should refuse as fraud: " + question);
     }
 
@@ -104,6 +105,6 @@ class QuestionClassifierServiceTest {
     @ValueSource(strings = {"", "   "})
     void blankQuestionsDefaultToEducational(String question) {
         // Blank input is rejected by request validation upstream anyway.
-        assertEquals(QuestionCategory.EDUCATIONAL, classifier.classify(question));
+        assertEquals(QuestionCategory.EDUCATIONAL, classifier.classify(question, DEFAULT_ID));
     }
 }

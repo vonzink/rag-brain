@@ -88,7 +88,7 @@ public class AskService {
 
         // 0. Pre-retrieval guardrail: questions we must not answer are caught
         //    here before any embedding or LLM spend.
-        QuestionCategory category = questionClassifierService.classify(request.question());
+        QuestionCategory category = questionClassifierService.classify(request.question(), brainId);
         if (category != QuestionCategory.EDUCATIONAL) {
             return refuse(conversation, request, RetrievalResult.empty(),
                     categoryAnswer(category, canned), null, "classified as " + category);

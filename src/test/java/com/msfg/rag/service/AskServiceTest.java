@@ -68,7 +68,7 @@ class AskServiceTest {
     /** Builds an AskService whose model returns exactly {@code modelJson}. */
     private AskService askServiceReturning(String modelJson, List<RetrievedChunk> chunks) {
         QuestionClassifierService classifier = mock(QuestionClassifierService.class);
-        when(classifier.classify(anyString())).thenReturn(QuestionCategory.EDUCATIONAL);
+        when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
 
         RetrievalService retrieval = mock(RetrievalService.class);
         when(retrieval.retrieve(anyString(), any()))
@@ -100,7 +100,7 @@ class AskServiceTest {
     /** Builds an AskService that classifies every question as {@code category}. */
     private AskService askServiceClassifying(QuestionCategory category) {
         QuestionClassifierService classifier = mock(QuestionClassifierService.class);
-        when(classifier.classify(anyString())).thenReturn(category);
+        when(classifier.classify(anyString(), any())).thenReturn(category);
 
         RetrievalService retrieval = mock(RetrievalService.class);
         when(retrieval.retrieve(anyString(), any())).thenReturn(RetrievalResult.empty());
