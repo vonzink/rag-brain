@@ -78,7 +78,8 @@ export interface BrainAdminDto {
 export interface BrainCreateRequest {
   slug: string;
   displayName: string;
-  packRef: string;
+  packRef?: string;          // omitted when generating a starter pack
+  disclaimer?: string;       // only used when generating
   sourceType: "local" | "s3";
   s3Bucket: string | null;
   s3Prefix: string | null;

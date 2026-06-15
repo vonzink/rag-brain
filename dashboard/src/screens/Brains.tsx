@@ -16,11 +16,12 @@ export default function Brains() {
   const [error, setError] = useState<string | null>(null);
   const [providers, setProviders] = useState<string[]>([]);
   const blankForm: BrainCreateRequest = {
-    slug: "", displayName: "", packRef: "packs/msfg-mortgage", sourceType: "local",
+    slug: "", displayName: "", packRef: "", disclaimer: "", sourceType: "local",
     s3Bucket: null, s3Prefix: null, s3Region: null, localPath: "",
     answerProvider: "anthropic", answerModel: "", utilityProvider: "openai", utilityModel: "",
   };
   const [form, setForm] = useState<BrainCreateRequest>(blankForm);
+  const [generatePack, setGeneratePack] = useState(true);
   const [creating, setCreating] = useState(false);
 
   const reload = useCallback(() => {
@@ -42,8 +43,11 @@ export default function Brains() {
   async function create() {
     setCreating(true); setError(null);
     try {
-      await brainsApi.create(form);
-      setForm(blankForm);
+      const body: BrainCreateRequest = generatePack
+        ? { ...form, packRef: undefined, disclaimer: form.disclaimer?.trim() || undefined }
+        : { ...form, disclaimer: undefined };
+      await brainsApi.create(body);
+      setForm(blankForm); setGeneratePack(true);
       reload();
     } catch (e) { setError((e as Error).message); }
     finally { setCreating(false); }
@@ -88,10 +92,29 @@ export default function Brains() {
                  placeholder="lending" />
         </div>
         <div className="setting-row">
-          <label>Pack ref</label>
-          <input value={form.packRef} onChange={(e) => set("packRef", e.target.value)} />
+          <label>Pack</label>
+          <div className="mode-toggle">
+            <button className={generatePack ? "on" : ""}
+                    onClick={() => setGeneratePack(true)}>Generate a starter pack (recommended)</button>
+            <button className={!generatePack ? "on" : ""}
+                    onClick={() => setGeneratePack(false)}>Use an existing pack</button>
+          </div>
         </div>
-        <p className="muted">The pack's internal <code>slug</code> must equal this brain's slug. Copy <code>packs/msfg-mortgage</code> to a new folder, set its <code>slug</code>, and point here.</p>
+        {generatePack ? (
+          <div className="setting-row">
+            <label>Disclaimer (optional)</label>
+            <input value={form.disclaimer ?? ""} onChange={(e) => set("disclaimer", e.target.value)}
+                   placeholder="Educational use only — verify against the source documents." />
+          </div>
+        ) : (
+          <>
+            <div className="setting-row">
+              <label>Pack ref</label>
+              <input value={form.packRef ?? ""} onChange={(e) => set("packRef", e.target.value)} />
+            </div>
+            <p className="muted">The pack's internal <code>slug</code> must equal this brain's slug. Copy <code>packs/msfg-mortgage</code> to a new folder, set its <code>slug</code>, and point here.</p>
+          </>
+        )}
         <div className="setting-row">
           <label>Source</label>
           <div className="mode-toggle">
@@ -148,7 +171,8 @@ export default function Brains() {
         <div className="setting-row">
           <button className="btn-primary" onClick={create}
                   disabled={creating || !form.slug.trim() || !form.displayName.trim()
-                            || (form.sourceType === "local" ? !form.localPath?.trim() : !form.s3Bucket?.trim())}>
+                            || (form.sourceType === "local" ? !form.localPath?.trim() : !form.s3Bucket?.trim())
+                            || (!generatePack && !form.packRef?.trim())}>
             {creating ? "Creating…" : "Create brain"}
           </button>
         </div>
