@@ -97,8 +97,8 @@ public class DomainPackLoader {
                 classifierFile.rules() == null ? null : classifierFile.rules().stream()
                         .map(r -> new DomainPack.ClassifierRule(r.category(), r.patterns()))
                         .toList(),
-                retrievalFile.acronyms(),
-                retrievalFile.programs() == null ? null : retrievalFile.programs().stream()
+                retrievalFile.acronyms() == null ? java.util.Map.of() : retrievalFile.acronyms(),
+                retrievalFile.programs() == null ? java.util.List.of() : retrievalFile.programs().stream()
                         .map(p -> new DomainPack.ProgramRule(
                                 p.program(),
                                 p.keywords() == null ? List.of() : p.keywords(),
@@ -154,10 +154,8 @@ public class DomainPackLoader {
             compileAll(dir, "classifier.yaml", rule.patterns());
         }
 
-        require(dir, "retrieval.yaml", "acronyms",
-                p.acronymExpansions() != null && !p.acronymExpansions().isEmpty());
-        require(dir, "retrieval.yaml", "programs",
-                p.programRules() != null && !p.programRules().isEmpty());
+        // acronyms + programs are OPTIONAL — a neutral pack may carry neither.
+        // Per-element checks (above, in load()) still run when present.
         for (DomainPack.ProgramRule rule : p.programRules()) {
             require(dir, "retrieval.yaml", "programs.program", notBlank(rule.program()));
             compileAll(dir, "retrieval.yaml", rule.wordPatterns());

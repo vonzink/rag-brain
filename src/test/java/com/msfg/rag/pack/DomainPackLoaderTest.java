@@ -65,6 +65,34 @@ class DomainPackLoaderTest {
     }
 
     @Test
+    void emptyAcronymsAndProgramsLoadSuccessfully() throws IOException {
+        Path dir = packCopy();
+        Files.writeString(dir.resolve("retrieval.yaml"), """
+                acronyms: {}
+                programs: []
+                """);
+        DomainPack pack = loader.load(dir);
+        assertNotNull(pack.acronymExpansions());
+        assertTrue(pack.acronymExpansions().isEmpty(), "empty acronyms must be allowed");
+        assertNotNull(pack.programRules());
+        assertTrue(pack.programRules().isEmpty(), "empty programs must be allowed");
+        // Null-safety: building the per-brain bundle must not NPE (CompiledProgram.compile).
+        BrainPackBundle bundle = BrainPackBundle.of(pack);
+        assertTrue(bundle.programs().isEmpty());
+        assertTrue(bundle.acronyms().isEmpty());
+    }
+
+    @Test
+    void absentAcronymsAndProgramsLoadSuccessfully() throws IOException {
+        Path dir = packCopy();
+        Files.writeString(dir.resolve("retrieval.yaml"), "{}\n");
+        DomainPack pack = loader.load(dir);
+        assertTrue(pack.acronymExpansions().isEmpty());
+        assertTrue(pack.programRules().isEmpty());
+        assertDoesNotThrow(() -> BrainPackBundle.of(pack));
+    }
+
+    @Test
     void nullYamlDocumentFailsNamingTheFile() throws IOException {
         Path dir = packCopy();
         Files.writeString(dir.resolve("pack.yaml"), "---\n");
