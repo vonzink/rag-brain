@@ -87,8 +87,9 @@ public class DocumentAdminController {
     }
 
     @GetMapping
-    public List<DocumentDto> list() {
-        return documentRepository.findAll().stream().map(DocumentDto::from).toList();
+    public List<DocumentDto> list(@RequestParam(value = "brain", required = false) String brain) {
+        return documentRepository.findByBrainId(brainResolver.resolve(brain).getId())
+                .stream().map(DocumentDto::from).toList();
     }
 
     @PostMapping("/{id}/reindex")

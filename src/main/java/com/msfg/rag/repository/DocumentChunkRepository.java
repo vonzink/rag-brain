@@ -77,4 +77,6 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
     List<ChunkSearchResult> searchByKeyword(@Param("query") String query,
                                             @Param("limit") int limit,
                                             @Param("brainId") UUID brainId);
+
+    long countByBrainId(UUID brainId);
 }

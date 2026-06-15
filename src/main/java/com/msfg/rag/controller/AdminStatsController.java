@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 /** Brain identity + corpus counts for the dashboard shell and corpus screen. */
 @RestController
 @RequestMapping("/api/ai/admin/stats")
@@ -37,9 +39,11 @@ public class AdminStatsController {
     public StatsDto stats(@RequestParam(value = "brain", required = false) String brain) {
         var resolved = brainResolver.resolve(brain);
         var pack = packRegistry.bundle(resolved.getId()).pack();
-        // Corpus counts stay global for now; SP4 scopes them by brain_id.
+        UUID brainId = resolved.getId();
         return new StatsDto(
                 new BrainDto(pack.companyName(), pack.slug()),
-                new CorpusDto(documents.countByActiveTrue(), documents.count(), chunks.count()));
+                new CorpusDto(documents.countByBrainIdAndActiveTrue(brainId),
+                              documents.countByBrainId(brainId),
+                              chunks.countByBrainId(brainId)));
     }
 }

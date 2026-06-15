@@ -19,9 +19,9 @@ class AdminStatsControllerTest {
     void statsCarryBrainIdentityAndCorpusCounts() {
         MortgageDocumentRepository docs = mock(MortgageDocumentRepository.class);
         DocumentChunkRepository chunks = mock(DocumentChunkRepository.class);
-        when(docs.count()).thenReturn(13L);
-        when(docs.countByActiveTrue()).thenReturn(9L);
-        when(chunks.count()).thenReturn(1990L);
+        when(docs.countByBrainId(any())).thenReturn(13L);
+        when(docs.countByBrainIdAndActiveTrue(any())).thenReturn(9L);
+        when(chunks.countByBrainId(any())).thenReturn(1990L);
 
         BrainResolver resolver = mock(BrainResolver.class);
         Brain defaultBrain = new Brain(TestBrains.DEFAULT_ID, "mortgage", "Mountain State Financial Group");

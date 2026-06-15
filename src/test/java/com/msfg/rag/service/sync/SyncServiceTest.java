@@ -55,7 +55,7 @@ class SyncServiceTest {
         MortgageDocument old = new MortgageDocument();
         old.setFileName("old.pdf");
         old.setActive(true);
-        when(documentRepository.findAll()).thenReturn(List.of(old));
+        when(documentRepository.findByBrainId(any())).thenReturn(List.of(old));
 
         SyncReport report = syncService.sync(true, TestBrains.DEFAULT_ID);
 
@@ -90,7 +90,7 @@ class SyncServiceTest {
         when(corpusSource.fetchManifest()).thenReturn(manifest);
         when(corpusSource.listFiles()).thenReturn(List.of("policy.pdf"));
         when(corpusSource.fetch("policy.pdf")).thenReturn(pdfBytes);
-        when(documentRepository.findAll()).thenReturn(List.of());
+        when(documentRepository.findByBrainId(any())).thenReturn(List.of());
 
         MortgageDocument saved = new MortgageDocument();
         saved.setFileName("policy.pdf");
@@ -130,14 +130,14 @@ class SyncServiceTest {
         when(corpusSource.fetchManifest()).thenReturn(EMPTY_MANIFEST);
         when(corpusSource.listFiles()).thenReturn(List.of("guide.pdf"));
         when(corpusSource.fetch("guide.pdf")).thenReturn(pdfBytes);
-        when(documentRepository.findAll()).thenReturn(List.of(stale));
+        when(documentRepository.findByBrainId(any())).thenReturn(List.of(stale));
 
         // Replacement is a distinct object from stale; identity comparison governs (both ids null)
         MortgageDocument replacement = new MortgageDocument();
         replacement.setFileName("guide.pdf");
         when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(replacement);
-        when(documentRepository.findByActiveTrue()).thenReturn(List.of(stale));
+        when(documentRepository.findByBrainIdAndActiveTrue(any())).thenReturn(List.of(stale));
 
         SyncReport report = syncService.sync(false, TestBrains.DEFAULT_ID);
 
@@ -167,7 +167,7 @@ class SyncServiceTest {
         when(corpusSource.listFiles()).thenReturn(List.of("guide.pdf", "new.pdf"));
         when(corpusSource.fetch("guide.pdf")).thenReturn(v2Bytes);
         when(corpusSource.fetch("new.pdf")).thenReturn(uploadBytes);
-        when(documentRepository.findAll()).thenReturn(List.of(stale));
+        when(documentRepository.findByBrainId(any())).thenReturn(List.of(stale));
 
         when(ingestionService.ingest(
                 eq("guide.pdf"), any(), any(), any(), any(), any(), any(), any(), any()))
@@ -181,8 +181,8 @@ class SyncServiceTest {
 
         SyncReport report = syncService.sync(false, TestBrains.DEFAULT_ID);
 
-        // findByActiveTrue never called; stale never saved
-        verify(documentRepository, never()).findByActiveTrue();
+        // findByBrainIdAndActiveTrue never called; stale never saved
+        verify(documentRepository, never()).findByBrainIdAndActiveTrue(any());
         verify(documentRepository, never()).save(stale);
         assertTrue(stale.isActive());
 
@@ -217,7 +217,7 @@ class SyncServiceTest {
         when(corpusSource.fetchManifest()).thenReturn(Optional.empty());
         when(corpusSource.listFiles()).thenReturn(List.of("old.pdf"));
         when(corpusSource.fetch("old.pdf")).thenReturn("PDF".getBytes());
-        when(documentRepository.findAll()).thenReturn(List.of(inactive, active));
+        when(documentRepository.findByBrainId(any())).thenReturn(List.of(inactive, active));
         when(documentRepository.findById(inactive.getId())).thenReturn(Optional.of(inactive));
         when(documentRepository.findById(active.getId())).thenReturn(Optional.of(active));
 
@@ -250,13 +250,13 @@ class SyncServiceTest {
         when(corpusSource.fetchManifest()).thenReturn(EMPTY_MANIFEST);
         when(corpusSource.listFiles()).thenReturn(List.of("guide.pdf"));
         when(corpusSource.fetch("guide.pdf")).thenReturn(pdfBytes);
-        when(documentRepository.findAll()).thenReturn(List.of(stale1, stale2));
+        when(documentRepository.findByBrainId(any())).thenReturn(List.of(stale1, stale2));
 
         MortgageDocument replacement = new MortgageDocument();
         replacement.setFileName("guide.pdf");
         when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(replacement);
-        when(documentRepository.findByActiveTrue()).thenReturn(List.of(stale1, stale2));
+        when(documentRepository.findByBrainIdAndActiveTrue(any())).thenReturn(List.of(stale1, stale2));
 
         syncService.sync(false, TestBrains.DEFAULT_ID);
 

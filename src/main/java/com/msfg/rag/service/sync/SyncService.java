@@ -43,7 +43,7 @@ public class SyncService {
     public SyncReport sync(boolean dryRun, UUID brainId) {
         SyncManifest manifest = SyncManifest.parse(corpusSource.fetchManifest());
         List<String> s3Files = corpusSource.listFiles();
-        List<MortgageDocument> brainDocs = documentRepository.findAll();
+        List<MortgageDocument> brainDocs = documentRepository.findByBrainId(brainId);
 
         // Fetch once; reuse bytes for hashing and (later) ingestion.
         Map<String, byte[]> bytesByFile = new HashMap<>();
@@ -89,7 +89,7 @@ public class SyncService {
                 // deactivate every stale active row with this fileName — covers
                 // the planned row AND any pre-existing duplicate actives.
                 MortgageDocument replacement = ingest(action, bytesByFile.get(action.fileName()), brainId);
-                for (MortgageDocument stale : documentRepository.findByActiveTrue()) {
+                for (MortgageDocument stale : documentRepository.findByBrainIdAndActiveTrue(brainId)) {
                     if (stale.getFileName().equals(action.fileName())) {
                         boolean same = stale == replacement
                                 || (stale.getId() != null && stale.getId().equals(replacement.getId()));

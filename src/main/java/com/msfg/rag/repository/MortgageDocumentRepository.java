@@ -13,4 +13,12 @@ public interface MortgageDocumentRepository extends JpaRepository<MortgageDocume
     List<MortgageDocument> findByActiveTrue();
 
     long countByActiveTrue();
+
+    List<MortgageDocument> findByBrainId(UUID brainId);
+
+    List<MortgageDocument> findByBrainIdAndActiveTrue(UUID brainId);
+
+    long countByBrainId(UUID brainId);
+
+    long countByBrainIdAndActiveTrue(UUID brainId);
 }
