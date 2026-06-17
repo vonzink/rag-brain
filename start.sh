@@ -13,9 +13,24 @@ cd "$(dirname "$0")"
 API_PORT=8091
 DASH_PORT=5174
 
-# 1. Database (Postgres :5435)
-docker compose up -d >/dev/null 2>&1 && echo "✓ database up (rag-brain-postgres :5435)" \
-  || { echo "✗ could not start the database — is Docker Desktop running?"; exit 1; }
+# 1. Docker + database (Postgres :5435) — auto-launch Docker Desktop if it's down
+if ! docker info >/dev/null 2>&1; then
+  echo "→ Docker daemon not running — launching Docker Desktop…"
+  open -a Docker 2>/dev/null || true
+  printf "→ waiting for Docker"
+  for _ in $(seq 1 60); do
+    docker info >/dev/null 2>&1 && break
+    printf "."; sleep 2
+  done
+  echo
+  docker info >/dev/null 2>&1 || {
+    echo "✗ Docker did not come up. Start Docker Desktop manually, then re-run ./start.sh"; exit 1; }
+fi
+if docker compose up -d; then
+  echo "✓ database up (rag-brain-postgres :5435)"
+else
+  echo "✗ database failed to start (see the docker error above)"; exit 1
+fi
 
 # 2. Backend API (:8091)
 if curl -sf -m2 "http://localhost:${API_PORT}/actuator/health" >/dev/null 2>&1; then
