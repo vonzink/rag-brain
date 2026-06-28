@@ -38,6 +38,14 @@ public class MortgageDocument {
     @Column(name = "source_type", nullable = false, length = 50)
     private SourceType sourceType;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 20)
+    private SourceVisibility visibility = SourceVisibility.PUBLIC;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "trust_level", nullable = false, length = 20)
+    private SourceTrustLevel trustLevel = SourceTrustLevel.APPROVED;
+
     @Column(name = "file_name", nullable = false, length = 500)
     private String fileName;
 
@@ -91,6 +99,12 @@ public class MortgageDocument {
 
     public SourceType getSourceType() { return sourceType; }
     public void setSourceType(SourceType sourceType) { this.sourceType = sourceType; }
+
+    public SourceVisibility getVisibility() { return visibility; }
+    public void setVisibility(SourceVisibility visibility) { this.visibility = visibility; }
+
+    public SourceTrustLevel getTrustLevel() { return trustLevel; }
+    public void setTrustLevel(SourceTrustLevel trustLevel) { this.trustLevel = trustLevel; }
 
     public String getFileName() { return fileName; }
     public void setFileName(String fileName) { this.fileName = fileName; }
