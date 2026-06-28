@@ -1,15 +1,15 @@
 package com.msfg.rag.service.ai;
 
 /**
- * Pre-retrieval classification of an incoming question (rag.md guardrails).
+ * Pre-retrieval classification of an incoming question.
  * Only EDUCATIONAL questions proceed to RAG retrieval and the LLM.
  */
 public enum QuestionCategory {
 
-    /** General mortgage education — proceeds through the full RAG pipeline. */
+    /** General knowledge-base question — proceeds through the full RAG pipeline. */
     EDUCATIONAL,
 
-    /** "Do I qualify?" / "Will I be approved?" — needs a licensed loan officer. */
+    /** "Do I qualify?" / "Will I be approved?" — needs human review. */
     ELIGIBILITY,
 
     /** Legal questions (suing, contracts, disputes) — not legal advice. */

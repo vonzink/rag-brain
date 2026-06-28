@@ -41,8 +41,8 @@ class BrainRepositoryTest {
     void migrationSeedsExactlyOneDefaultBrain() {
         Brain def = brains.findDefaultBrain().orElseThrow();
         assertEquals(TestBrains.DEFAULT_ID, def.getId());
-        assertEquals("mortgage", def.getSlug());
-        assertEquals("packs/msfg-mortgage", def.getPackRef());
+        assertEquals("generic", def.getSlug());
+        assertEquals("packs/generic", def.getPackRef());
         assertTrue(def.isDefault());
         assertTrue(def.isActive());
     }

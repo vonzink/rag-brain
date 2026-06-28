@@ -23,7 +23,7 @@ import java.util.Set;
 public class AdminSettingsController {
 
     private static final List<String> KNOWN_PROVIDERS =
-            List.of("anthropic", "openai", "deepseek", "gemini", "grok");
+            List.of("anthropic", "openai", "deepseek", "gemini", "grok", "local");
 
     private static final Set<String> PROVIDER_KEYS = Set.of("answer.provider", "utility.provider");
     private static final Set<String> MODEL_KEYS = Set.of("answer.model", "utility.model");

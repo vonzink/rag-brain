@@ -11,7 +11,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * are exposed for the dashboard and remain key-gated at the filter layer.
  *
  * Allowed origins come from CORS_ALLOWED_ORIGINS (comma-separated), e.g.
- * "https://msfg.us,https://www.msfg.us". Localhost defaults support
+ * "https://app.example.com,https://www.example.com". Localhost defaults support
  * local website development.
  */
 @Configuration
@@ -21,7 +21,7 @@ public class CorsConfig implements WebMvcConfigurer {
     private final String slug;
 
     public CorsConfig(@Value("${msfg.rag.cors.allowed-origins}") String allowedOrigins,
-                      @Value("${brain.slug:mortgage}") String slug) {
+                      @Value("${brain.slug:generic}") String slug) {
         this.allowedOrigins = allowedOrigins.split(",");
         this.slug = slug;
     }

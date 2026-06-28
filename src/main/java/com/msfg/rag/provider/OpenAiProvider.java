@@ -5,12 +5,14 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
 /**
  * OpenAI adapter — configured as the fallback provider.
  */
 @Component
+@ConditionalOnBean(OpenAiChatModel.class)
 public class OpenAiProvider implements AiModelProvider {
 
     private final OpenAiChatModel chatModel;

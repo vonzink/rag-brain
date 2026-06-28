@@ -15,6 +15,12 @@ public interface ChunkSearchResult {
 
     String getContent();
 
+    UUID getParentChunkId();
+
+    String getParentContent();
+
+    String getHierarchyPath();
+
     String getMetadataJson();
 
     String getSourceName();

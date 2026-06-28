@@ -5,15 +5,18 @@ import com.msfg.rag.domain.Brain;
 import com.msfg.rag.provider.AiModelProvider;
 import com.msfg.rag.provider.AiRequest;
 import com.msfg.rag.provider.AiResponse;
+import com.msfg.rag.provider.OpenAiCompatibleProvider;
 import com.msfg.rag.repository.BrainRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -39,25 +42,33 @@ public class ModelRouterService {
     private final RagProperties.Routing routing;
     private final RuntimeSettings settings;
     private final BrainRepository brainRepository;
+    private final LocalEndpointValidator localEndpointValidator;
+    private final String localApiKey;
+
+    /** Per-base-URL cache of providers bound to a brain's own local endpoint. */
+    private final Map<String, AiModelProvider> localProviderCache = new ConcurrentHashMap<>();
 
     public ModelRouterService(List<AiModelProvider> providerBeans, RagProperties properties,
-                              RuntimeSettings settings, BrainRepository brainRepository) {
+                              RuntimeSettings settings, BrainRepository brainRepository,
+                              LocalEndpointValidator localEndpointValidator,
+                              @Value("${brain.providers.local.api-key:}") String localApiKey) {
         this.providers = providerBeans.stream()
                 .collect(Collectors.toMap(AiModelProvider::getProviderName, Function.identity()));
         this.routing = properties.routing();
         this.settings = settings;
         this.brainRepository = brainRepository;
+        this.localEndpointValidator = localEndpointValidator;
+        // Local servers usually ignore the key; Spring AI still requires a non-blank one.
+        this.localApiKey = (localApiKey == null || localApiKey.isBlank()) ? "not-needed" : localApiKey;
 
         if (!providers.containsKey(routing.defaultProvider())) {
-            throw new IllegalStateException(
-                    "Default AI provider '" + routing.defaultProvider() + "' is not registered. "
-                    + "Available: " + providers.keySet());
+            log.warn("Default AI provider '{}' is not configured. Available providers: {}",
+                    routing.defaultProvider(), providers.keySet());
         }
         String fallback = routing.fallbackProvider();
         if (fallback != null && !fallback.isBlank() && !providers.containsKey(fallback)) {
-            throw new IllegalStateException(
-                    "Fallback AI provider '" + fallback + "' is not registered. "
-                    + "Available: " + providers.keySet());
+            log.warn("Fallback AI provider '{}' is not configured. Available providers: {}",
+                    fallback, providers.keySet());
         }
     }
 
@@ -72,12 +83,21 @@ public class ModelRouterService {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown brain: " + brainId));
         ResolvedModel resolved = resolve(brain, request.purpose());
 
-        AiModelProvider primary = providers.get(resolved.provider());
-        if (primary == null) {
-            log.warn("Configured {} provider '{}' is not registered; using default '{}'",
-                    request.purpose() == AiRequest.Purpose.UTILITY ? "utility" : "answer",
-                    resolved.provider(), routing.defaultProvider());
-            primary = providers.get(routing.defaultProvider());
+        AiModelProvider primary;
+        if ("local".equals(resolved.provider())
+                && brain.getLocalBaseUrl() != null && !brain.getLocalBaseUrl().isBlank()) {
+            primary = localProviderFor(brain.getLocalBaseUrl());   // per-brain endpoint
+        } else {
+            primary = providers.get(resolved.provider());
+            if (primary == null) {
+                log.warn("Configured {} provider '{}' is not registered; using default '{}'",
+                        request.purpose() == AiRequest.Purpose.UTILITY ? "utility" : "answer",
+                        resolved.provider(), routing.defaultProvider());
+                primary = providers.get(routing.defaultProvider());
+            }
+            if (primary == null) {
+                throw missingProvider(resolved.provider(), request.purpose());
+            }
         }
 
         try {
@@ -112,6 +132,31 @@ public class ModelRouterService {
         return utility
                 ? new ResolvedModel(settings.utilityProvider(), settings.utilityModel())
                 : new ResolvedModel(settings.answerProvider(), settings.answerModel());
+    }
+
+    /**
+     * Returns (and caches) a provider bound to a brain's own local endpoint. The base
+     * URL is SSRF-validated on first use (link-local/metadata always blocked; allowlist
+     * enforced when set) — also enforced at admin write time. The per-request model is
+     * passed via withModel(...), so one cached client per base URL serves any model.
+     */
+    private AiModelProvider localProviderFor(String baseUrl) {
+        return localProviderCache.computeIfAbsent(baseUrl, url -> {
+            localEndpointValidator.validate(url);   // SSRF check at first use
+            return new OpenAiCompatibleProvider("local", url, localApiKey, "");
+        });
+    }
+
+    private IllegalStateException missingProvider(String provider, AiRequest.Purpose purpose) {
+        String hint = switch (provider) {
+            case "anthropic" -> "Set ANTHROPIC_API_KEY or choose another configured answer provider.";
+            case "openai" -> "Set OPENAI_API_KEY or choose another configured provider.";
+            case "local" -> "Set LOCAL_LLM_BASE_URL and a local model, or choose another provider.";
+            default -> "Configure this provider in environment variables or choose a registered provider.";
+        };
+        return new IllegalStateException("AI provider '" + provider + "' is not configured for "
+                + purpose.name().toLowerCase() + " requests. " + hint
+                + " Registered providers: " + providers.keySet());
     }
 
     private record ResolvedModel(String provider, String model) {}

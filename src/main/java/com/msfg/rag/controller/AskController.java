@@ -18,7 +18,7 @@ import java.util.UUID;
  * Public website endpoint. Rate limiting is applied by RateLimitFilter.
  */
 @RestController
-@RequestMapping("/api/ai/${brain.slug:mortgage}")
+@RequestMapping("/api/ai/${brain.slug:generic}")
 public class AskController {
 
     private final AskService askService;

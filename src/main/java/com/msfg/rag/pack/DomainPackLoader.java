@@ -17,7 +17,8 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
- * Reads the five YAML files of a domain pack directory into a DomainPack.
+ * Reads the required YAML files of a domain pack directory into a DomainPack.
+ * Optional source-links.yaml and page-guides.yaml seed admin registries.
  * Throws PackValidationException naming the exact file (and field) on any
  * problem — the application must fail to boot rather than run with a partial
  * compliance layer.
@@ -38,6 +39,16 @@ public class DomainPackLoader {
     private record ClassifierRuleFile(QuestionCategory category, List<String> patterns) {}
     private record RetrievalFile(Map<String, String> acronyms, List<ProgramFile> programs) {}
     private record ProgramFile(String program, List<String> keywords, List<String> wordPatterns) {}
+    private record SourceLinksFile(List<SourceLinkFile> links) {}
+    private record SourceLinkFile(String name, String url, String domain, String authority,
+                                  List<String> topics, boolean freshnessRequired,
+                                  List<String> allowedUse, List<String> doNotUseFor,
+                                  String surface) {}
+    private record PageGuidesFile(List<PageGuideFile> guides) {}
+    private record PageGuideFile(String route, String title, String purpose, String surface,
+                                 List<String> userIntents, List<String> allowedGuidance,
+                                 List<InternalLinkFile> internalLinks, List<String> topics) {}
+    private record InternalLinkFile(String label, String url) {}
 
     public DomainPack load(Path packDir) {
         PackFile packFile = read(packDir, "pack.yaml", PackFile.class);
@@ -45,6 +56,8 @@ public class DomainPackLoader {
         GuardrailsFile guardrailsFile = read(packDir, "guardrails.yaml", GuardrailsFile.class);
         ClassifierFile classifierFile = read(packDir, "classifier.yaml", ClassifierFile.class);
         RetrievalFile retrievalFile = read(packDir, "retrieval.yaml", RetrievalFile.class);
+        SourceLinksFile sourceLinksFile = readOptional(packDir, "source-links.yaml", SourceLinksFile.class);
+        PageGuidesFile pageGuidesFile = readOptional(packDir, "page-guides.yaml", PageGuidesFile.class);
 
         // Element-level checks BEFORE assembly: List.copyOf/Map.copyOf in the
         // record constructors reject null elements with a bare NPE, which
@@ -103,7 +116,25 @@ public class DomainPackLoader {
                                 p.program(),
                                 p.keywords() == null ? List.of() : p.keywords(),
                                 p.wordPatterns() == null ? List.of() : p.wordPatterns()))
-                        .toList());
+                        .toList(),
+                (sourceLinksFile == null || sourceLinksFile.links() == null) ? List.of()
+                        : sourceLinksFile.links().stream()
+                                .map(s -> new DomainPack.SourceLink(
+                                        s.name(), s.url(), s.domain(), s.authority(),
+                                        s.topics(), s.freshnessRequired(),
+                                        s.allowedUse(), s.doNotUseFor(), s.surface()))
+                                .toList(),
+                (pageGuidesFile == null || pageGuidesFile.guides() == null) ? List.of()
+                        : pageGuidesFile.guides().stream()
+                                .map(g -> new DomainPack.PageGuide(
+                                        g.route(), g.title(), g.purpose(), g.surface(),
+                                        g.userIntents(), g.allowedGuidance(),
+                                        g.internalLinks() == null ? List.of()
+                                                : g.internalLinks().stream()
+                                                        .map(l -> new DomainPack.InternalLink(l.label(), l.url()))
+                                                        .toList(),
+                                        g.topics()))
+                                .toList());
 
         validate(packDir, pack);
         return pack;
@@ -220,6 +251,25 @@ public class DomainPackLoader {
         if (!Files.isRegularFile(file)) {
             throw new PackValidationException(
                     "domain pack " + packDir + ": missing required file " + fileName);
+        }
+        try {
+            T parsed = yaml.readValue(file.toFile(), type);
+            if (parsed == null) {
+                throw new PackValidationException(
+                        "domain pack " + packDir + ": " + fileName + ": file is empty");
+            }
+            return parsed;
+        } catch (IOException e) {
+            throw new PackValidationException(
+                    "domain pack " + packDir + ": " + fileName + ": " + e.getMessage(), e);
+        }
+    }
+
+    /** Optional pack file: a missing file returns null (caller defaults to empty). */
+    private <T> T readOptional(Path packDir, String fileName, Class<T> type) {
+        Path file = packDir.resolve(fileName);
+        if (!Files.isRegularFile(file)) {
+            return null;
         }
         try {
             T parsed = yaml.readValue(file.toFile(), type);

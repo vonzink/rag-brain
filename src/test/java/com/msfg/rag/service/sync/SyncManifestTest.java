@@ -54,13 +54,13 @@ class SyncManifestTest {
 
         assertTrue(entry.ingest());
         assertEquals("va loan guide", entry.title());
-        assertEquals("MSFG Knowledge Base", entry.sourceName());
+        assertEquals("Generic Knowledge Base", entry.sourceName());
         assertEquals("AGENCY_GUIDELINE", entry.sourceType());
     }
 
     @Test
     void malformedManifestActsAsEmpty() {
         SyncManifest manifest = SyncManifest.parse(Optional.of("not-json".getBytes(StandardCharsets.UTF_8)));
-        assertEquals("MSFG Knowledge Base", manifest.resolve("x.pdf").sourceName());
+        assertEquals("Generic Knowledge Base", manifest.resolve("x.pdf").sourceName());
     }
 }

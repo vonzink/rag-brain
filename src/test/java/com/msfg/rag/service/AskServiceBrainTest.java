@@ -2,26 +2,36 @@ package com.msfg.rag.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.msfg.rag.domain.Conversation;
+import com.msfg.rag.domain.RagTrace;
 import com.msfg.rag.dto.AskRequest;
 import com.msfg.rag.pack.DomainPackRegistry;
 import com.msfg.rag.pack.TestPacks;
-import com.msfg.rag.provider.AiResponse;
 import com.msfg.rag.repository.AnswerSourceRepository;
 import com.msfg.rag.repository.ConversationRepository;
 import com.msfg.rag.repository.MessageRepository;
 import com.msfg.rag.service.ai.AnswerValidationService;
+import com.msfg.rag.service.ai.Intent;
+import com.msfg.rag.service.ai.IntentRouterService;
 import com.msfg.rag.service.ai.ModelRouterService;
+import com.msfg.rag.service.ai.OutputContractService;
 import com.msfg.rag.service.ai.PromptBuilderService;
 import com.msfg.rag.service.ai.QuestionCategory;
 import com.msfg.rag.service.ai.QuestionClassifierService;
 import com.msfg.rag.service.audit.AuditLogService;
+import com.msfg.rag.service.audit.RagTraceService;
+import com.msfg.rag.service.retrieval.PlannedEvidence;
 import com.msfg.rag.service.retrieval.RetrievalResult;
+import com.msfg.rag.service.retrieval.RetrievalPlan;
+import com.msfg.rag.service.retrieval.RetrievalPlannerService;
 import com.msfg.rag.service.retrieval.RetrievalService;
+import com.msfg.rag.service.retrieval.SourceKind;
+import com.msfg.rag.service.retrieval.VocabularyService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,6 +64,10 @@ class AskServiceBrainTest {
     private final ConversationRepository conversations = mock(ConversationRepository.class);
     private final MessageRepository messages = mock(MessageRepository.class);
     private final AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
+    private final IntentRouterService intentRouter = mock(IntentRouterService.class);
+    private final RetrievalPlannerService planner = mock(RetrievalPlannerService.class);
+    private final VocabularyService vocabulary = mock(VocabularyService.class);
+    private final RagTraceService trace = mock(RagTraceService.class);
 
     private AskService askService() {
         when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
@@ -63,6 +77,14 @@ class AskServiceBrainTest {
         when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
         when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(intentRouter.route(anyString(), any(), any())).thenReturn(Intent.GUIDELINE_QUESTION);
+        when(planner.plan(any(), any(), any())).thenReturn(new RetrievalPlan(Set.of(SourceKind.CORPUS)));
+        when(planner.collect(any(), any(), anyString(), any(), any())).thenReturn(PlannedEvidence.empty());
+        when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
+        RagTrace row = mock(RagTrace.class);
+        when(row.getId()).thenReturn(UUID.randomUUID());
+        when(trace.record(any(), any(), anyString(), any(), any(), any(), anyList(),
+                any(), anyList(), anyString(), any(), anyBoolean())).thenReturn(row);
         when(conversations.save(any())).thenAnswer(inv -> {
             Conversation c = inv.getArgument(0);
             if (c.getId() == null) {
@@ -74,7 +96,8 @@ class AskServiceBrainTest {
                 BRAIN_A, TestPacks.msfg(), BRAIN_B, TestPacks.msfg()));
         return new AskService(registry, classifier, retrieval, promptBuilder, router,
                 new AnswerValidationService(registry), audit,
-                conversations, messages, sources, new ObjectMapper());
+                conversations, messages, sources, new ObjectMapper(),
+                intentRouter, planner, new OutputContractService(), vocabulary, trace);
     }
 
     private AskRequest request(UUID conversationId) {

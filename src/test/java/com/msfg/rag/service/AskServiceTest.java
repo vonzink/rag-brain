@@ -4,21 +4,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.msfg.rag.dto.AskRequest;
 import com.msfg.rag.dto.AskResponse;
 import com.msfg.rag.dto.CitationDto;
+import com.msfg.rag.domain.RagTrace;
 import com.msfg.rag.provider.AiResponse;
 import com.msfg.rag.repository.AnswerSourceRepository;
 import com.msfg.rag.repository.ConversationRepository;
 import com.msfg.rag.repository.MessageRepository;
 import com.msfg.rag.pack.TestPacks;
 import com.msfg.rag.service.ai.AnswerValidationService;
+import com.msfg.rag.service.ai.Intent;
+import com.msfg.rag.service.ai.IntentRouterService;
 import com.msfg.rag.service.ai.ModelAnswer;
 import com.msfg.rag.service.ai.ModelRouterService;
+import com.msfg.rag.service.ai.OutputContractService;
 import com.msfg.rag.service.ai.PromptBuilderService;
 import com.msfg.rag.service.ai.QuestionCategory;
 import com.msfg.rag.service.ai.QuestionClassifierService;
 import com.msfg.rag.service.audit.AuditLogService;
+import com.msfg.rag.service.audit.RagTraceService;
+import com.msfg.rag.service.retrieval.PlannedEvidence;
 import com.msfg.rag.service.retrieval.RetrievalResult;
+import com.msfg.rag.service.retrieval.RetrievalPlan;
 import com.msfg.rag.service.retrieval.RetrievalService;
 import com.msfg.rag.service.retrieval.RetrievedChunk;
+import com.msfg.rag.service.retrieval.SourceKind;
+import com.msfg.rag.service.retrieval.VocabularyService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -27,6 +36,7 @@ import com.msfg.rag.TestBrains;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -92,9 +103,17 @@ class AskServiceTest {
         AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
         when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
+        IntentRouterService intentRouter = mock(IntentRouterService.class);
+        when(intentRouter.route(anyString(), any(), any())).thenReturn(Intent.GUIDELINE_QUESTION);
+        RetrievalPlannerServiceMocks plannerMocks = plannerMocks();
+        VocabularyService vocabulary = mock(VocabularyService.class);
+        when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
+        RagTraceService trace = traceService();
+
         return new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper());
+                conversations, messages, sources, new ObjectMapper(),
+                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
     }
 
     /** Builds an AskService that classifies every question as {@code category}. */
@@ -120,9 +139,38 @@ class AskServiceTest {
         AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
         when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
+        IntentRouterService intentRouter = mock(IntentRouterService.class);
+        when(intentRouter.route(anyString(), any(), any())).thenReturn(Intent.GUIDELINE_QUESTION);
+        RetrievalPlannerServiceMocks plannerMocks = plannerMocks();
+        VocabularyService vocabulary = mock(VocabularyService.class);
+        when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
+        RagTraceService trace = traceService();
+
         return new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper());
+                conversations, messages, sources, new ObjectMapper(),
+                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+    }
+
+    private record RetrievalPlannerServiceMocks(
+            com.msfg.rag.service.retrieval.RetrievalPlannerService planner) {}
+
+    private RetrievalPlannerServiceMocks plannerMocks() {
+        var planner = mock(com.msfg.rag.service.retrieval.RetrievalPlannerService.class);
+        when(planner.plan(any(), any(), any()))
+                .thenReturn(new RetrievalPlan(Set.of(SourceKind.CORPUS)));
+        when(planner.collect(any(), any(), anyString(), any(), any()))
+                .thenReturn(PlannedEvidence.empty());
+        return new RetrievalPlannerServiceMocks(planner);
+    }
+
+    private RagTraceService traceService() {
+        RagTraceService trace = mock(RagTraceService.class);
+        RagTrace row = mock(RagTrace.class);
+        when(row.getId()).thenReturn(UUID.randomUUID());
+        when(trace.record(any(), any(), anyString(), any(), any(), any(), anyList(),
+                any(), anyList(), anyString(), any(), anyBoolean())).thenReturn(row);
+        return trace;
     }
 
     private AskRequest pmiQuestion() {

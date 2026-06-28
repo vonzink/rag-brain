@@ -1,10 +1,10 @@
 spring:
   application:
-    name: msfg-rag
+    name: rag-brain
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5433/msfg_rag}
-    username: ${DB_USERNAME:msfg_rag}
+    url: ${DB_URL:jdbc:postgresql://localhost:5435/rag_brain}
+    username: ${DB_USERNAME:rag_brain}
     password: ${DB_PASSWORD:local_dev_only}
 
   jpa:
@@ -46,8 +46,9 @@ server:
 
 # Which domain pack this deployment runs (see packs/ and the platform spec).
 brain:
-  pack: ${BRAIN_PACK:packs/msfg-mortgage}
-  slug: ${BRAIN_SLUG:mortgage}
+  pack: ${BRAIN_PACK:packs/generic}
+  slug: ${BRAIN_SLUG:generic}
+  name: ${BRAIN_NAME:Generic Brain}
   providers:
     deepseek:
       api-key: ${DEEPSEEK_API_KEY:}
@@ -68,8 +69,8 @@ brain:
   local-llm:
     allowed-hosts: ${LOCAL_LLM_ALLOWED_HOSTS:}
   corpus:
-    bucket: ${S3_BUCKET:msfg.us}
-    prefix: ${S3_PREFIX:rag-brain/}
+    bucket: ${S3_BUCKET:}
+    prefix: ${S3_PREFIX:}
     region: ${AWS_REGION:us-west-1}
 
 management:
@@ -79,7 +80,7 @@ management:
         include: health,info,metrics
 
 # ------------------------------------------------------------
-# MSFG application-specific configuration
+# RAG Brain application configuration
 # ------------------------------------------------------------
 msfg:
   rag:

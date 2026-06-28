@@ -5,12 +5,14 @@ import org.springframework.ai.anthropic.AnthropicChatOptions;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
 /**
  * Anthropic Claude adapter — the default provider.
  */
 @Component
+@ConditionalOnBean(AnthropicChatModel.class)
 public class AnthropicProvider implements AiModelProvider {
 
     private final AnthropicChatModel chatModel;

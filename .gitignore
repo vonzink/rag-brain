@@ -21,5 +21,6 @@ data/
 
 # Runtime-generated brain packs (keep the committed template + msfg-mortgage)
 /packs/*
+!/packs/generic/
 !/packs/msfg-mortgage/
 !/packs/_template/

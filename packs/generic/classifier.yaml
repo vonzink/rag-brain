@@ -1,0 +1,30 @@
+rules:
+  - category: FRAUD
+    patterns:
+      - '\b(fake|falsif|forge|doctor|alter)\w*\b'
+      - '\b(hide|conceal|misrepresent)\b.*\b(information|data|record|document|evidence)'
+      - '\b(lie|lying)\b.*\b(application|record|report|document)'
+
+  - category: LEGAL
+    patterns:
+      - '\b(sue|suing|lawsuit|litigation)\b'
+      - '\b(is (it|this) legal|illegal)\b'
+      - '\b(lawyer|attorney)\b'
+      - '\bbreach of contract\b'
+
+  - category: TAX
+    patterns:
+      - '\btax (strategy|advice|loophole)\b'
+      - '\b(deduct|deduction|write off|writing off)\b'
+      - '\bhow should (i|we) file\b.*\btax'
+
+  - category: LIVE_RATES
+    patterns:
+      - '\b(current|live|real-time|today''?s?) (price|prices|rate|rates|data)\b'
+      - '\bwhat(''s| is| are)? .* (right now|currently)\b'
+
+  - category: ELIGIBILITY
+    patterns:
+      - '\b(am i|are we) (eligible|approved|qualified)\b'
+      - '\bdo i qualify\b'
+      - '\bwill (i|we) be (approved|accepted|eligible)\b'

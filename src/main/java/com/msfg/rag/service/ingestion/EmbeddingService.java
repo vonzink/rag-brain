@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -29,18 +30,18 @@ public class EmbeddingService {
     private static final int MAX_ATTEMPTS = 6;
     private static final long INITIAL_BACKOFF_MS = 5_000;
 
-    private final EmbeddingModel embeddingModel;
+    private final ObjectProvider<EmbeddingModel> embeddingModel;
 
-    public EmbeddingService(@Qualifier("openAiEmbeddingModel") EmbeddingModel embeddingModel) {
+    public EmbeddingService(@Qualifier("openAiEmbeddingModel") ObjectProvider<EmbeddingModel> embeddingModel) {
         this.embeddingModel = embeddingModel;
     }
 
     public float[] embed(String text) {
-        return withRateLimitRetry(() -> embeddingModel.embed(text));
+        return withRateLimitRetry(() -> model().embed(text));
     }
 
     public List<float[]> embedBatch(List<String> texts) {
-        return withRateLimitRetry(() -> embeddingModel.embed(texts));
+        return withRateLimitRetry(() -> model().embed(texts));
     }
 
     /** Formats a vector as a pgvector literal, e.g. "[0.12,-0.34,...]". */
@@ -85,5 +86,14 @@ public class EmbeddingService {
         String message = e.getMessage();
         return message != null
                 && (message.contains("429") || message.contains("rate_limit_exceeded"));
+    }
+
+    private EmbeddingModel model() {
+        EmbeddingModel model = embeddingModel.getIfAvailable();
+        if (model == null) {
+            throw new IllegalStateException("OpenAI embeddings are not configured. "
+                    + "Set OPENAI_API_KEY before ingesting documents or running retrieval.");
+        }
+        return model;
     }
 }

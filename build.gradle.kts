@@ -26,10 +26,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
-    // --- Spring AI: Anthropic chat, OpenAI embeddings, pgvector store, Tika document reader ---
-    implementation("org.springframework.ai:spring-ai-starter-model-anthropic")
-    implementation("org.springframework.ai:spring-ai-starter-model-openai")
-    implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
+    // --- Spring AI: model libraries, Tika document reader ---
+    // Providers are wired conditionally in app code so the admin dashboard can
+    // boot without cloud API keys. pgvector retrieval is implemented with SQL.
+    implementation("org.springframework.ai:spring-ai-anthropic")
+    implementation("org.springframework.ai:spring-ai-openai")
     implementation("org.springframework.ai:spring-ai-tika-document-reader")
 
     // --- Database ---

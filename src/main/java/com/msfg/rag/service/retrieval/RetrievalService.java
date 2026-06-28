@@ -46,6 +46,7 @@ public class RetrievalService {
     private final RagProperties.Retrieval config;
     private final RuntimeSettings settings;
     private final DomainPackRegistry packRegistry;
+    private final VocabularyService vocabularyService;
 
     public RetrievalService(DocumentChunkRepository chunkRepository,
                             EmbeddingService embeddingService,
@@ -53,7 +54,8 @@ public class RetrievalService {
                             ObjectMapper objectMapper,
                             RagProperties properties,
                             DomainPackRegistry packRegistry,
-                            RuntimeSettings settings) {
+                            RuntimeSettings settings,
+                            VocabularyService vocabularyService) {
         this.chunkRepository = chunkRepository;
         this.embeddingService = embeddingService;
         this.rerankerService = rerankerService;
@@ -61,6 +63,7 @@ public class RetrievalService {
         this.config = properties.retrieval();
         this.settings = settings;
         this.packRegistry = packRegistry;
+        this.vocabularyService = vocabularyService;
     }
 
     @Transactional(readOnly = true)
@@ -70,7 +73,7 @@ public class RetrievalService {
         }
 
         BrainPackBundle bundle = packRegistry.bundle(brainId);
-        Map<String, String> acronyms = bundle.acronyms();
+        Map<String, String> acronyms = vocabularyService.effectiveSynonyms(brainId);
         List<CompiledProgram> programs = bundle.programs();
 
         boolean rerank = settings.rerankEnabled();
@@ -171,7 +174,10 @@ public class RetrievalService {
         return new RetrievedChunk(
                 hit.source.getChunkId(),
                 hit.source.getDocumentId(),
-                hit.source.getContent(),
+                assembledContent(hit.source.getContent(), hit.source.getParentContent()),
+                hit.source.getParentChunkId(),
+                hit.source.getParentContent(),
+                hit.source.getHierarchyPath(),
                 hit.source.getSourceName(),
                 hit.source.getSourceType(),
                 hit.source.getDocumentName(),
@@ -183,6 +189,18 @@ public class RetrievalService {
                 hit.keywordScore,
                 combined
         );
+    }
+
+    private static String assembledContent(String childContent, String parentContent) {
+        if (parentContent == null || parentContent.isBlank()
+                || parentContent.equals(childContent)) {
+            return childContent;
+        }
+        String parent = parentContent.length() <= 4000
+                ? parentContent
+                : parentContent.substring(0, 4000) + "\n[section context truncated]";
+        return "Parent section context:\n" + parent
+                + "\n\nFocused retrieved chunk:\n" + childContent;
     }
 
     private static final java.util.Set<String> STOPWORDS = java.util.Set.of(

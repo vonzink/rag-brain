@@ -14,15 +14,23 @@ import com.msfg.rag.repository.AnswerSourceRepository;
 import com.msfg.rag.repository.ConversationRepository;
 import com.msfg.rag.repository.MessageRepository;
 import com.msfg.rag.service.ai.AnswerValidationService;
+import com.msfg.rag.service.ai.Intent;
+import com.msfg.rag.service.ai.IntentRouterService;
 import com.msfg.rag.service.ai.ModelAnswer;
 import com.msfg.rag.service.ai.ModelRouterService;
+import com.msfg.rag.service.ai.OutputContractService;
 import com.msfg.rag.service.ai.PromptBuilderService;
 import com.msfg.rag.service.ai.QuestionCategory;
 import com.msfg.rag.service.ai.QuestionClassifierService;
 import com.msfg.rag.service.audit.AuditLogService;
+import com.msfg.rag.service.audit.RagTraceService;
+import com.msfg.rag.service.retrieval.PlannedEvidence;
+import com.msfg.rag.service.retrieval.RetrievalPlan;
+import com.msfg.rag.service.retrieval.RetrievalPlannerService;
 import com.msfg.rag.service.retrieval.RetrievalResult;
 import com.msfg.rag.service.retrieval.RetrievalService;
 import com.msfg.rag.service.retrieval.RetrievedChunk;
+import com.msfg.rag.service.retrieval.VocabularyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -57,6 +65,11 @@ public class AskService {
     private final MessageRepository messageRepository;
     private final AnswerSourceRepository answerSourceRepository;
     private final ObjectMapper objectMapper;
+    private final IntentRouterService intentRouterService;
+    private final RetrievalPlannerService retrievalPlannerService;
+    private final OutputContractService outputContractService;
+    private final VocabularyService vocabularyService;
+    private final RagTraceService ragTraceService;
 
     public AskService(DomainPackRegistry packRegistry,
                       QuestionClassifierService questionClassifierService,
@@ -68,7 +81,12 @@ public class AskService {
                       ConversationRepository conversationRepository,
                       MessageRepository messageRepository,
                       AnswerSourceRepository answerSourceRepository,
-                      ObjectMapper objectMapper) {
+                      ObjectMapper objectMapper,
+                      IntentRouterService intentRouterService,
+                      RetrievalPlannerService retrievalPlannerService,
+                      OutputContractService outputContractService,
+                      VocabularyService vocabularyService,
+                      RagTraceService ragTraceService) {
         this.packRegistry = packRegistry;
         this.questionClassifierService = questionClassifierService;
         this.retrievalService = retrievalService;
@@ -80,6 +98,11 @@ public class AskService {
         this.messageRepository = messageRepository;
         this.answerSourceRepository = answerSourceRepository;
         this.objectMapper = objectMapper;
+        this.intentRouterService = intentRouterService;
+        this.retrievalPlannerService = retrievalPlannerService;
+        this.outputContractService = outputContractService;
+        this.vocabularyService = vocabularyService;
+        this.ragTraceService = ragTraceService;
     }
 
     @Transactional
@@ -95,8 +118,15 @@ public class AskService {
         QuestionCategory category = questionClassifierService.classify(request.question(), brainId);
         if (category != QuestionCategory.EDUCATIONAL) {
             return refuse(conversation, request, brainId, RetrievalResult.empty(),
-                    categoryAnswer(category, canned), null, "classified as " + category);
+                    categoryAnswer(category, canned), null, "classified as " + category,
+                    null, null, null, PlannedEvidence.empty());
         }
+
+        Intent intent = intentRouterService.route(
+                request.question(), request.pageRoute(), request.surface());
+        RetrievalPlan plan = retrievalPlannerService.plan(
+                intent, request.pageRoute(), request.surface());
+        String rewrittenQuestion = vocabularyService.previewExpansion(brainId, request.question());
 
         // 1. Retrieve approved source context.
         RetrievalResult retrieval = retrievalService.retrieve(request.question(), brainId);
@@ -104,8 +134,11 @@ public class AskService {
         // 2. Refuse early when there is no reliable source material.
         if (!retrieval.sufficientEvidence()) {
             return refuse(conversation, request, brainId, retrieval, canned.noSource(), null,
-                    "insufficient evidence");
+                    "insufficient evidence", rewrittenQuestion, intent, plan, PlannedEvidence.empty());
         }
+
+        PlannedEvidence sideEvidence = retrievalPlannerService.collect(
+                brainId, plan, request.question(), request.pageRoute(), request.surface());
 
         // 3. Build the locked prompt and call the model (with fallback).
         String prompt = promptBuilderService.build(request.question(), retrieval.chunks(), brainId);
@@ -116,7 +149,7 @@ public class AskService {
         ModelAnswer modelAnswer = parseModelAnswer(routed.response().content());
         if (modelAnswer == null) {
             return refuse(conversation, request, brainId, retrieval, canned.escalation(), prompt,
-                    "unparseable model response");
+                    "unparseable model response", rewrittenQuestion, intent, plan, sideEvidence);
         }
 
         // 4a. A model refusal must surface as one coherent refusal. When the
@@ -127,7 +160,7 @@ public class AskService {
         if (Boolean.TRUE.equals(modelAnswer.humanEscalationRequired())
                 && (modelAnswer.citations() == null || modelAnswer.citations().isEmpty())) {
             return refuse(conversation, request, brainId, retrieval, canned.noSource(), prompt,
-                    "model escalated without citations");
+                    "model escalated without citations", rewrittenQuestion, intent, plan, sideEvidence);
         }
 
         // 4b. Salvage grounded answers that omit citations. The answer model
@@ -147,7 +180,7 @@ public class AskService {
         if (!validation.valid()) {
             log.warn("Answer rejected by validator: {}", validation.failureReason());
             return refuse(conversation, request, brainId, retrieval, canned.escalation(), prompt,
-                    validation.failureReason());
+                    validation.failureReason(), rewrittenQuestion, intent, plan, sideEvidence);
         }
 
         boolean escalate = Boolean.TRUE.equals(modelAnswer.humanEscalationRequired());
@@ -170,8 +203,14 @@ public class AskService {
                 retrieval.chunks(), prompt, modelAnswer.answer(), routed.response().providerName(),
                 routed.response().modelName(), confidence, routed.fallbackUsed(), escalate);
 
+        OutputContractService.OutputContract contract = outputContractService.build(sideEvidence);
+        UUID traceId = ragTraceService.record(conversation.getId(), conversation.getBrainId(),
+                request.question(), rewrittenQuestion, intent, plan, retrieval.chunks(), sideEvidence,
+                citations, modelAnswer.answer(), confidence, escalate).getId();
+
         return new AskResponse(conversation.getId(), modelAnswer.answer(), citations,
-                confidence, escalate, promptBuilderService.disclaimer(brainId));
+                confidence, escalate, promptBuilderService.disclaimer(brainId),
+                contract.recommendedPage(), contract.links(), contract.nextAction(), traceId);
     }
 
     // ------------------------------------------------------------------
@@ -194,7 +233,11 @@ public class AskService {
                                RetrievalResult retrieval,
                                String answerText,
                                String prompt,
-                               String reason) {
+                               String reason,
+                               String rewrittenQuestion,
+                               Intent intent,
+                               RetrievalPlan plan,
+                               PlannedEvidence sideEvidence) {
         log.info("Refusal/escalation for conversation {}: {}", conversation.getId(), reason);
 
         Message assistantMessage = saveMessage(conversation, Message.ROLE_ASSISTANT, answerText, null);
@@ -203,8 +246,13 @@ public class AskService {
         auditLogService.record(conversation.getId(), conversation.getBrainId(), request.question(),
                 retrieval.chunks(), prompt, answerText, null, null, retrieval.confidence(), false, true);
 
+        UUID traceId = ragTraceService.record(conversation.getId(), conversation.getBrainId(),
+                request.question(), rewrittenQuestion, intent, plan, retrieval.chunks(), sideEvidence,
+                List.of(), answerText, retrieval.confidence(), true).getId();
+
         return new AskResponse(conversation.getId(), answerText, List.of(),
-                retrieval.confidence(), true, promptBuilderService.disclaimer(brainId));
+                retrieval.confidence(), true, promptBuilderService.disclaimer(brainId),
+                null, List.of(), null, traceId);
     }
 
     private Conversation resolveConversation(AskRequest request, UUID brainId) {

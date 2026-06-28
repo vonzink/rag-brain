@@ -109,6 +109,20 @@ public class DocumentIngestionService {
         }
     }
 
+    @Transactional
+    public void delete(UUID documentId) {
+        MortgageDocument document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new IllegalArgumentException("Document not found: " + documentId));
+
+        chunkRepository.deleteByDocumentId(documentId);
+        String storageKey = document.getS3Key();
+        if (storageKey != null) {
+            storageService.delete(storageKey);
+        }
+        documentRepository.delete(document);
+        log.info("Deleted document '{}' ({})", document.getTitle(), document.getFileName());
+    }
+
     private int extractChunkAndEmbed(MortgageDocument document, InputStream content) {
         String text = textExtractionService.extract(content, document.getFileName());
         if (text.isBlank()) {
@@ -117,45 +131,76 @@ public class DocumentIngestionService {
                     + " — is it a scanned image PDF? OCR is not supported yet.");
         }
 
-        List<TextChunk> textChunks = chunkingService.chunk(text);
+        List<TextChunk> textChunks = chunkingService.chunkHierarchical(text);
         List<DocumentChunk> entities = new ArrayList<>(textChunks.size());
+        Map<Integer, DocumentChunk> parentByIndex = new HashMap<>();
+
+        for (TextChunk tc : textChunks) {
+            if (tc.type() != TextChunk.ChunkType.PARENT) {
+                continue;
+            }
+            DocumentChunk parent = toEntity(document, tc, null, null);
+            parentByIndex.put(tc.index(), chunkRepository.save(parent));
+        }
+
+        List<TextChunk> childChunks = textChunks.stream()
+                .filter(tc -> tc.type() == TextChunk.ChunkType.CHILD)
+                .toList();
 
         // Embed in batches to limit API request size.
-        for (int start = 0; start < textChunks.size(); start += EMBEDDING_BATCH_SIZE) {
-            List<TextChunk> batch = textChunks.subList(
-                    start, Math.min(start + EMBEDDING_BATCH_SIZE, textChunks.size()));
+        for (int start = 0; start < childChunks.size(); start += EMBEDDING_BATCH_SIZE) {
+            List<TextChunk> batch = childChunks.subList(
+                    start, Math.min(start + EMBEDDING_BATCH_SIZE, childChunks.size()));
             List<float[]> embeddings = embeddingService.embedBatch(
                     batch.stream().map(TextChunk::content).toList());
 
             for (int i = 0; i < batch.size(); i++) {
                 TextChunk tc = batch.get(i);
-                DocumentChunk entity = new DocumentChunk();
-                entity.setBrainId(document.getBrainId());
-                entity.setDocument(document);
-                entity.setChunkIndex(tc.index());
-                entity.setContent(tc.content());
-                entity.setTokenCount(tc.tokenCount());
-                entity.setEmbedding(embeddings.get(i));
-
-                Map<String, Object> metadata = new HashMap<>();
-                metadata.put("source_name", document.getSourceName());
-                metadata.put("source_type", document.getSourceType().name());
-                metadata.put("document_name", document.getFileName());
-                if (tc.heading() != null) {
-                    metadata.put("section", tc.heading());
-                }
-                if (document.getEffectiveDate() != null) {
-                    metadata.put("effective_date", document.getEffectiveDate().toString());
-                }
-                if (document.getDocumentVersion() != null) {
-                    metadata.put("version", document.getDocumentVersion());
-                }
-                entity.setMetadata(metadata);
+                DocumentChunk entity = toEntity(document, tc, embeddings.get(i),
+                        tc.parentIndex() == null ? null : parentByIndex.get(tc.parentIndex()));
                 entities.add(entity);
             }
         }
 
         chunkRepository.saveAll(entities);
-        return entities.size();
+        return parentByIndex.size() + entities.size();
+    }
+
+    private DocumentChunk toEntity(MortgageDocument document, TextChunk tc, float[] embedding,
+                                   DocumentChunk parent) {
+        DocumentChunk entity = new DocumentChunk();
+        entity.setBrainId(document.getBrainId());
+        entity.setDocument(document);
+        entity.setChunkIndex(tc.index());
+        entity.setChunkType(tc.type().name());
+        entity.setParentChunk(parent);
+        entity.setHierarchyPath(tc.path());
+        entity.setHierarchyLevel(tc.level());
+        entity.setContent(tc.content());
+        entity.setTokenCount(tc.tokenCount());
+        entity.setEmbedding(embedding);
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("source_name", document.getSourceName());
+        metadata.put("source_type", document.getSourceType().name());
+        metadata.put("document_name", document.getFileName());
+        metadata.put("chunk_type", tc.type().name());
+        if (tc.parentIndex() != null) {
+            metadata.put("parent_chunk_index", tc.parentIndex());
+        }
+        if (tc.path() != null) {
+            metadata.put("hierarchy_path", tc.path());
+        }
+        if (tc.heading() != null) {
+            metadata.put("section", tc.heading());
+        }
+        if (document.getEffectiveDate() != null) {
+            metadata.put("effective_date", document.getEffectiveDate().toString());
+        }
+        if (document.getDocumentVersion() != null) {
+            metadata.put("version", document.getDocumentVersion());
+        }
+        entity.setMetadata(metadata);
+        return entity;
     }
 }

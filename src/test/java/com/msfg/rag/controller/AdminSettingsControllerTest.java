@@ -56,7 +56,7 @@ class AdminSettingsControllerTest {
         Map<String, Object> body = controller.get();
 
         List<Map<String, Object>> known = (List<Map<String, Object>>) body.get("providers");
-        assertEquals(5, known.size());
+        assertEquals(6, known.size());
         assertEquals("anthropic", known.get(0).get("name"));
         assertEquals(true,        known.get(0).get("configured"));
         assertEquals("openai",    known.get(1).get("name"));
@@ -67,6 +67,8 @@ class AdminSettingsControllerTest {
         assertEquals(false,       known.get(3).get("configured"));
         assertEquals("grok",      known.get(4).get("name"));
         assertEquals(false,       known.get(4).get("configured"));
+        assertEquals("local",     known.get(5).get("name"));
+        assertEquals(false,       known.get(5).get("configured"));
     }
 
     @Test

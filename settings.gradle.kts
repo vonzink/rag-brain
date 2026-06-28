@@ -1,1 +1,1 @@
-rootProject.name = "msfg-rag"
+rootProject.name = "rag-brain"

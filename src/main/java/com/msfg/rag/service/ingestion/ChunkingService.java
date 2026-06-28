@@ -101,6 +101,41 @@ public class ChunkingService {
         return chunks;
     }
 
+    /**
+     * Returns parent section chunks plus child retrieval chunks. Parent chunks
+     * are stored without embeddings and provide broader context for answer
+     * assembly after a child chunk is retrieved.
+     */
+    public List<TextChunk> chunkHierarchical(String text) {
+        List<TextChunk> children = chunk(text);
+        if (children.isEmpty()) {
+            return List.of();
+        }
+
+        List<TextChunk> out = new ArrayList<>();
+        int i = 0;
+        while (i < children.size()) {
+            String heading = children.get(i).heading();
+            String path = heading == null || heading.isBlank() ? "Document" : heading;
+            int start = i;
+            while (i < children.size() && java.util.Objects.equals(children.get(i).heading(), heading)) {
+                i++;
+            }
+            List<TextChunk> group = children.subList(start, i);
+            String parentContent = group.stream()
+                    .map(TextChunk::content)
+                    .collect(java.util.stream.Collectors.joining("\n\n"));
+            int parentIndex = out.size();
+            out.add(new TextChunk(parentIndex, parentContent, countTokens(parentContent), heading,
+                    TextChunk.ChunkType.PARENT, null, path, 0));
+            for (TextChunk child : group) {
+                out.add(new TextChunk(out.size(), child.content(), child.tokenCount(), child.heading(),
+                        TextChunk.ChunkType.CHILD, parentIndex, path, 1));
+            }
+        }
+        return out;
+    }
+
     public int countTokens(String text) {
         if (text == null || text.isEmpty()) {
             return 0;

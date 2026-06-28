@@ -15,8 +15,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * A guideline document uploaded into the RAG knowledge base,
- * e.g. a Fannie Mae Selling Guide PDF or an MSFG internal overlay policy.
+ * A source document uploaded into the RAG knowledge base.
  */
 @Entity
 @Table(name = "brain_documents")

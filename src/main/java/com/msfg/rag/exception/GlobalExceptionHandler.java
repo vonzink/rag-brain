@@ -34,6 +34,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException e) {
+        HttpStatus status = e.getMessage() != null && e.getMessage().contains("not configured")
+                ? HttpStatus.SERVICE_UNAVAILABLE
+                : HttpStatus.BAD_REQUEST;
+        return ResponseEntity.status(status).body(Map.of("error", e.getMessage()));
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, String>> handleUploadTooLarge(MaxUploadSizeExceededException e) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)

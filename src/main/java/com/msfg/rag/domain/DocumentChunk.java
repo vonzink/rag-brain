@@ -42,6 +42,19 @@ public class DocumentChunk {
     @Column(name = "chunk_index", nullable = false)
     private int chunkIndex;
 
+    @Column(name = "chunk_type", nullable = false, length = 20)
+    private String chunkType = "CHILD";
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_chunk_id")
+    private DocumentChunk parentChunk;
+
+    @Column(name = "hierarchy_path", length = 1000)
+    private String hierarchyPath;
+
+    @Column(name = "hierarchy_level")
+    private Integer hierarchyLevel;
+
     @Column(nullable = false, columnDefinition = "text")
     private String content;
 
@@ -87,6 +100,18 @@ public class DocumentChunk {
 
     public int getChunkIndex() { return chunkIndex; }
     public void setChunkIndex(int chunkIndex) { this.chunkIndex = chunkIndex; }
+
+    public String getChunkType() { return chunkType; }
+    public void setChunkType(String chunkType) { this.chunkType = chunkType; }
+
+    public DocumentChunk getParentChunk() { return parentChunk; }
+    public void setParentChunk(DocumentChunk parentChunk) { this.parentChunk = parentChunk; }
+
+    public String getHierarchyPath() { return hierarchyPath; }
+    public void setHierarchyPath(String hierarchyPath) { this.hierarchyPath = hierarchyPath; }
+
+    public Integer getHierarchyLevel() { return hierarchyLevel; }
+    public void setHierarchyLevel(Integer hierarchyLevel) { this.hierarchyLevel = hierarchyLevel; }
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }

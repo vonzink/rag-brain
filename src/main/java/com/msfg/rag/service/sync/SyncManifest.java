@@ -48,7 +48,7 @@ public final class SyncManifest {
                 !entry.path("ingest").isBoolean() || entry.path("ingest").asBoolean(),
                 text(entry, "reason", null),
                 text(entry, "title", deriveTitle(fileName)),
-                text(entry, "sourceName", text(defaults, "sourceName", "MSFG Knowledge Base")),
+                text(entry, "sourceName", text(defaults, "sourceName", "Generic Knowledge Base")),
                 text(entry, "sourceType", text(defaults, "sourceType", "AGENCY_GUIDELINE")),
                 text(entry, "documentVersion", null),
                 text(entry, "effectiveDate", null),

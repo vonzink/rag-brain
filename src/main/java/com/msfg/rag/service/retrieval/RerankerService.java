@@ -31,7 +31,7 @@ public class RerankerService {
     private static final int EXCERPT_CHARS = 600;
 
     private static final String PROMPT_TEMPLATE = """
-            You are a retrieval reranker for a mortgage guideline Q&A system.
+            You are a retrieval reranker for a source-grounded RAG system.
 
             Score how well each numbered source excerpt answers the user question.
             Scoring: 10 = directly states the specific rule/figure asked about;
@@ -82,7 +82,8 @@ public class RerankerService {
             for (int i = 0; i < candidates.size(); i++) {
                 RetrievedChunk c = candidates.get(i);
                 rescored.add(new RetrievedChunk(
-                        c.chunkId(), c.documentId(), c.content(), c.sourceName(),
+                        c.chunkId(), c.documentId(), c.content(), c.parentChunkId(),
+                        c.parentContent(), c.hierarchyPath(), c.sourceName(),
                         c.sourceType(), c.documentName(), c.documentTitle(), c.section(),
                         c.pageNumber(), c.effectiveDate(),
                         c.vectorScore(), c.keywordScore(),

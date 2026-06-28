@@ -35,7 +35,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final String askPath;
 
     public RateLimitFilter(RagProperties properties,
-                           @Value("${brain.slug:mortgage}") String slug) {
+                           @Value("${brain.slug:generic}") String slug) {
         this.requestsPerMinute = properties.rateLimit().requestsPerMinute();
         this.askPath = "/api/ai/" + slug + "/ask";
     }

@@ -12,6 +12,10 @@ public record AskResponse(
         List<CitationDto> citations,
         double confidence,
         boolean humanEscalationRequired,
-        String disclaimer
+        String disclaimer,
+        RecommendedPageDto recommendedPage,
+        List<LinkDto> links,
+        String nextAction,
+        UUID traceId
 ) {
 }

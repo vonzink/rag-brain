@@ -6,6 +6,8 @@ import { ErrorNote, Pill } from "../components";
 export default function TestConsole({ slug }: { slug: string }) {
   const [mode, setMode] = useState<"ask" | "retrieval">("ask");
   const [question, setQuestion] = useState("What is PMI?");
+  const [pageRoute, setPageRoute] = useState("");
+  const [surface, setSurface] = useState("PUBLIC");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState<AskResponse | null>(null);
@@ -18,7 +20,12 @@ export default function TestConsole({ slug }: { slug: string }) {
     const start = performance.now();
     try {
       if (mode === "ask") {
-        setAnswer(await api.post<AskResponse>(`/api/ai/${slug}/ask`, { sessionId, question }));
+        setAnswer(await api.post<AskResponse>(`/api/ai/${slug}/ask`, {
+          sessionId,
+          question,
+          pageRoute: pageRoute.trim() || null,
+          surface,
+        }));
       } else {
         setRetrieval(await api.get<RetrievalResult>(
           `/api/ai/documents/test-retrieval?question=${encodeURIComponent(question)}`));
@@ -44,6 +51,15 @@ export default function TestConsole({ slug }: { slug: string }) {
           {busy ? "Working…" : mode === "ask" ? "Ask" : "Retrieve"}
         </button>
       </div>
+      <div className="ask-bar" style={{ marginTop: 8 }}>
+        <input placeholder="page route (optional)" value={pageRoute}
+               onChange={(e) => setPageRoute(e.target.value)} />
+        <select value={surface} onChange={(e) => setSurface(e.target.value)}>
+          <option value="PUBLIC">public</option>
+          <option value="INTERNAL">internal</option>
+          <option value="BOTH">both</option>
+        </select>
+      </div>
       <ErrorNote message={error} />
       {answer && (
         <div className="card">
@@ -52,6 +68,7 @@ export default function TestConsole({ slug }: { slug: string }) {
               {answer.humanEscalationRequired ? "escalated" : "grounded"}</Pill>
             <Pill tone="gray">confidence {answer.confidence.toFixed(2)}</Pill>
             <Pill tone="gray">{answer.citations.length} citations</Pill>
+            {answer.traceId && <Pill tone="gray">trace {answer.traceId.slice(0, 8)}</Pill>}
             {elapsed !== null && <Pill tone="gray">{elapsed.toFixed(1)} s</Pill>}
           </div>
           <p className="answer">{answer.answer}</p>
@@ -63,6 +80,17 @@ export default function TestConsole({ slug }: { slug: string }) {
               ))}
             </ul>
           )}
+          {answer.recommendedPage && (
+            <p className="muted">Recommended page: {answer.recommendedPage.label} ({answer.recommendedPage.route})</p>
+          )}
+          {answer.links && answer.links.length > 0 && (
+            <ul className="citations">
+              {answer.links.map((l, i) => (
+                <li key={i}><a href={l.url} target="_blank" rel="noreferrer">{l.name}</a> · {l.authority.toLowerCase()}</li>
+              ))}
+            </ul>
+          )}
+          {answer.nextAction && <p className="muted">{answer.nextAction}</p>}
           <p className="muted">{answer.disclaimer}</p>
         </div>
       )}
