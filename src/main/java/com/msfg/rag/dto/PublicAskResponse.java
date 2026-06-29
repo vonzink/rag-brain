@@ -13,7 +13,6 @@ public record PublicAskResponse(
         List<PublicRecommendedPageDto> recommendedPages,
         double confidence,
         String nextAction,
-        UUID conversationId,
-        UUID traceId
+        UUID conversationId
 ) {
 }

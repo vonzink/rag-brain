@@ -166,3 +166,19 @@ Result: `BUILD SUCCESSFUL`
 ```
 
 Result: `BUILD SUCCESSFUL`
+
+---
+
+## Task 4 Re-Review Fix Report: Public Trace Leakage
+
+### Finding addressed
+- Removed `traceId` from `PublicAskResponse` so the public ask contract no longer exposes trace identifiers.
+- Stopped copying `AskResponse.traceId()` into the public response mapping in `PublicAskService`.
+- Added a regression test that inspects the public record components and fails if `traceId` returns.
+
+### Verification run
+```bash
+./gradlew test --tests com.msfg.rag.service.publicapi.PublicAskServiceTest
+```
+
+Result: `BUILD SUCCESSFUL`

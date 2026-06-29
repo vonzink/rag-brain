@@ -42,7 +42,7 @@ public class PublicAskService {
                 brain.getId(), req.message(), surface, req.facts() == null ? Map.of() : req.facts());
         if (decision.responseType() == ResponseType.CLARIFY) {
             return new PublicAskResponse("CLARIFY", decision.question(), null, decision.question(),
-                    decision.missingFacts(), List.of(), List.of(), 0.0, null, null, null);
+                    decision.missingFacts(), List.of(), List.of(), 0.0, null, null);
         }
         if (decision.responseType() == ResponseType.NAVIGATE) {
             AskResponse answer = askService.ask(toAskRequest(req, surface), brain.getId(), SourceVisibility.PUBLIC);
@@ -62,6 +62,6 @@ public class PublicAskService {
                 : List.of(new PublicRecommendedPageDto(
                         answer.recommendedPage().label(), answer.recommendedPage().route(), "Matched the current question."));
         return new PublicAskResponse(responseType, answer.answer(), answer.answer(), null, List.of(),
-                answer.citations(), pages, answer.confidence(), answer.nextAction(), answer.conversationId(), answer.traceId());
+                answer.citations(), pages, answer.confidence(), answer.nextAction(), answer.conversationId());
     }
 }

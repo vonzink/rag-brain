@@ -19,8 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -76,6 +78,14 @@ class PublicAskServiceTest {
         assertEquals("ANSWER", response.responseType());
         assertEquals("PMI is mortgage insurance.", response.answer());
         assertEquals(0.94, response.confidence());
+    }
+
+    @Test
+    void publicAskResponseContractDoesNotExposeTraceId() {
+        boolean hasTraceIdComponent = Arrays.stream(com.msfg.rag.dto.PublicAskResponse.class.getRecordComponents())
+                .anyMatch(component -> component.getName().equals("traceId"));
+
+        assertFalse(hasTraceIdComponent);
     }
 
     @Test
