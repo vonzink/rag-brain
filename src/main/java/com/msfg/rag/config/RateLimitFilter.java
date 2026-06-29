@@ -15,6 +15,7 @@ import org.springframework.web.util.UrlPathHelper;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -32,12 +33,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
     private final int requestsPerMinute;
-    private final String askPath;
+    private final Set<String> askPaths;
 
     public RateLimitFilter(RagProperties properties,
                            @Value("${brain.slug:generic}") String slug) {
         this.requestsPerMinute = properties.rateLimit().requestsPerMinute();
-        this.askPath = "/api/ai/" + slug + "/ask";
+        this.askPaths = Set.of(
+                "/api/ai/" + slug + "/ask",
+                "/api/ai/public/" + slug + "/ask");
     }
 
     @Override
@@ -48,7 +51,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return true;
         }
         // Decoded path — percent-encoding must not bypass rate limiting.
-        return !PATH_HELPER.getPathWithinApplication(request).equals(askPath);
+        return !askPaths.contains(PATH_HELPER.getPathWithinApplication(request));
     }
 
     @Override

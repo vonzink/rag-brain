@@ -22,6 +22,8 @@ class RateLimitFilterTest {
 
         assertFalse(filter.shouldNotFilter(get("/api/ai/mortgage/ask")),
                 "the ask path must be rate limited");
+        assertFalse(filter.shouldNotFilter(get("/api/ai/public/mortgage/ask")),
+                "the public ask path must be rate limited");
         assertTrue(filter.shouldNotFilter(get("/api/ai/documents")),
                 "admin endpoints are not rate limited by this filter");
     }

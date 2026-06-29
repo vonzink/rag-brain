@@ -43,7 +43,7 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
             WHERE d.is_active = TRUE
               AND (d.effective_date IS NULL OR d.effective_date <= CURRENT_DATE)
               AND (d.expiration_date IS NULL OR d.expiration_date >= CURRENT_DATE)
-              AND d.visibility = :visibility
+              AND (:visibility IS NULL OR d.visibility = :visibility)
               AND d.trust_level <> 'BLOCKED'
               AND c.brain_id = :brainId
               AND COALESCE(c.chunk_type, 'CHILD') = 'CHILD'
@@ -81,7 +81,7 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
             WHERE d.is_active = TRUE
               AND (d.effective_date IS NULL OR d.effective_date <= CURRENT_DATE)
               AND (d.expiration_date IS NULL OR d.expiration_date >= CURRENT_DATE)
-              AND d.visibility = :visibility
+              AND (:visibility IS NULL OR d.visibility = :visibility)
               AND d.trust_level <> 'BLOCKED'
               AND c.brain_id = :brainId
               AND COALESCE(c.chunk_type, 'CHILD') = 'CHILD'

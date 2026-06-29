@@ -2,6 +2,7 @@ package com.msfg.rag.controller;
 
 import com.msfg.rag.domain.MortgageDocument;
 import com.msfg.rag.domain.SourceType;
+import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.dto.DocumentDto;
 import com.msfg.rag.dto.DocumentUpdateRequest;
 import com.msfg.rag.repository.MortgageDocumentRepository;
@@ -161,8 +162,9 @@ public class DocumentAdminController {
      */
     @GetMapping("/test-retrieval")
     public RetrievalResult testRetrieval(@RequestParam("question") String question,
-                                         @RequestParam(value = "brain", required = false) String brain) {
-        return retrievalService.retrieve(question, brainResolver.resolve(brain).getId());
+                                         @RequestParam(value = "brain", required = false) String brain,
+                                         @RequestParam(value = "visibility", required = false) SourceVisibility visibility) {
+        return retrievalService.retrieveAdmin(question, brainResolver.resolve(brain).getId(), visibility);
     }
 
     private ResponseEntity<DocumentDto> setActive(UUID id, boolean active) {

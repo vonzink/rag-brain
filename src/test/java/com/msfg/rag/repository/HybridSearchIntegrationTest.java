@@ -220,6 +220,19 @@ class HybridSearchIntegrationTest {
         assertTrue(results.stream().noneMatch(r -> r.getSourceName().equals("Blocked Guide")));
     }
 
+    @Test
+    void adminKeywordSearchWithoutVisibilityFilterCanSeeInternalDocuments() {
+        MortgageDocument internalDoc = saveDocument("Internal Guide", true, null,
+                SourceVisibility.INTERNAL, SourceTrustLevel.APPROVED);
+        saveChunk(internalDoc, 0, "Gift funds internal policy details.", unitVector(0));
+
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword(
+                "gift funds", 10, TestBrains.DEFAULT_ID, null);
+
+        assertTrue(results.stream().anyMatch(r -> r.getSourceName().equals("Fannie Mae Selling Guide")));
+        assertTrue(results.stream().anyMatch(r -> r.getSourceName().equals("Internal Guide")));
+    }
+
     // ------------------------------------------------------------------
 
     private MortgageDocument saveDocument(String sourceName, boolean active,

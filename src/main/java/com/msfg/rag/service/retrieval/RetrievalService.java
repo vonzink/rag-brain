@@ -74,6 +74,20 @@ public class RetrievalService {
 
     @Transactional(readOnly = true)
     public RetrievalResult retrieve(String question, UUID brainId, SourceVisibility visibility) {
+        return retrieveByVisibility(question, brainId, visibility);
+    }
+
+    @Transactional(readOnly = true)
+    public RetrievalResult retrieveAdmin(String question, UUID brainId) {
+        return retrieveAdmin(question, brainId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public RetrievalResult retrieveAdmin(String question, UUID brainId, SourceVisibility visibility) {
+        return retrieveByVisibility(question, brainId, visibility);
+    }
+
+    private RetrievalResult retrieveByVisibility(String question, UUID brainId, SourceVisibility visibility) {
         if (question == null || question.isBlank()) {
             return RetrievalResult.empty();
         }
@@ -101,9 +115,9 @@ public class RetrievalService {
         String vectorLiteral = EmbeddingService.toVectorLiteral(questionEmbedding);
 
         List<ChunkSearchResult> vectorHits = chunkRepository.searchByVector(
-                vectorLiteral, candidatePool, brainId, visibility.name());
+                vectorLiteral, candidatePool, brainId, visibility == null ? null : visibility.name());
         List<ChunkSearchResult> keywordHits = chunkRepository.searchByKeyword(
-                toOrQuery(expandedQuestion), candidatePool, brainId, visibility.name());
+                toOrQuery(expandedQuestion), candidatePool, brainId, visibility == null ? null : visibility.name());
 
         Map<UUID, MutableHit> merged = new HashMap<>();
         for (ChunkSearchResult hit : vectorHits) {
