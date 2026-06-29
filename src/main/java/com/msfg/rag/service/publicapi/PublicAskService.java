@@ -1,6 +1,7 @@
 package com.msfg.rag.service.publicapi;
 
 import com.msfg.rag.domain.Brain;
+import com.msfg.rag.domain.BrainProfile;
 import com.msfg.rag.domain.ResponseType;
 import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.dto.AskRequest;
@@ -40,7 +41,7 @@ public class PublicAskService {
     public PublicAskResponse ask(String slug, String token, String origin, PublicAskRequest req) {
         Brain brain = brains.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown brain: " + slug));
-        access.validate(brain.getId(), token, origin);
+        BrainProfile profile = access.validate(brain.getId(), token, origin);
         String surface = SourceVisibility.PUBLIC.name();
         Map<String, Object> facts = req.facts() == null ? Map.of() : req.facts();
         ClarificationDecision decision = clarification.decide(
@@ -49,7 +50,8 @@ public class PublicAskService {
             traceService.recordPublicDecision(brain.getId(), req.sessionId(), req.message(), facts,
                     decision, SourceVisibility.PUBLIC);
             return new PublicAskResponse("CLARIFY", decision.question(), null, decision.question(),
-                    decision.missingFacts(), List.of(), List.of(), 0.0, null, null);
+                    decision.missingFacts(), List.of(), List.of(), 0.0, null, null,
+                    disclaimerOf(profile), false);
         }
         if (decision.responseType() == ResponseType.NAVIGATE) {
             traceService.recordPublicDecision(brain.getId(), req.sessionId(), req.message(), facts,
@@ -71,6 +73,14 @@ public class PublicAskService {
                 : List.of(new PublicRecommendedPageDto(
                         answer.recommendedPage().label(), answer.recommendedPage().route(), "Matched the current question."));
         return new PublicAskResponse(responseType, answer.answer(), answer.answer(), null, List.of(),
-                answer.citations(), pages, answer.confidence(), answer.nextAction(), answer.conversationId());
+                answer.citations(), pages, answer.confidence(), answer.nextAction(), answer.conversationId(),
+                answer.disclaimer(), answer.humanEscalationRequired());
+    }
+
+    private static String disclaimerOf(BrainProfile profile) {
+        if (profile == null || profile.getDisclaimer() == null || profile.getDisclaimer().isBlank()) {
+            return null;
+        }
+        return profile.getDisclaimer().strip();
     }
 }

@@ -185,6 +185,28 @@ class PublicAskServiceTest {
         assertEquals("ANSWER", response.responseType());
         assertEquals("PMI is mortgage insurance.", response.answer());
         assertEquals(0.94, response.confidence());
+        assertEquals("disclaimer", response.disclaimer());
+        assertFalse(response.humanEscalationRequired());
+    }
+
+    @Test
+    void answerResponsePropagatesDisclaimerAndEscalationFlag() {
+        Brain brain = new Brain(TestBrains.DEFAULT_ID, "generic", "Generic");
+        when(brains.findBySlug("generic")).thenReturn(Optional.of(brain));
+        when(access.validate(eq(TestBrains.DEFAULT_ID), eq("token"), eq("https://example.com")))
+                .thenReturn(new BrainProfile());
+        when(clarification.decide(eq(TestBrains.DEFAULT_ID), eq("Do I qualify for a custom rate?"), eq("PUBLIC"), any()))
+                .thenReturn(ClarificationDecision.answer());
+        when(ask.ask(any(), eq(TestBrains.DEFAULT_ID), eq(SourceVisibility.PUBLIC))).thenReturn(new AskResponse(
+                UUID.randomUUID(), "Please contact a loan officer.", List.of(), 0.30, true,
+                "Educational use only.", null, List.of(), "talk-to-human", UUID.randomUUID()));
+
+        var response = service.ask("generic", "token", "https://example.com",
+                new PublicAskRequest("s1", "Do I qualify for a custom rate?", "/", "PUBLIC", Map.of()));
+
+        assertEquals("ESCALATE", response.responseType());
+        assertEquals("Educational use only.", response.disclaimer());
+        assertEquals(true, response.humanEscalationRequired());
     }
 
     @Test

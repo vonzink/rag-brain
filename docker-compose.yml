@@ -19,5 +19,32 @@ services:
       timeout: 5s
       retries: 10
 
+  # Application container. Runs the prod profile, so ADMIN_API_KEY MUST be set
+  # (the dev default is rejected at startup). Provide secrets via a .env file or
+  # your shell:  ADMIN_API_KEY=... OPENAI_API_KEY=... docker compose up --build
+  app:
+    build:
+      context: .
+    container_name: rag-brain-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/rag_brain
+      DB_USERNAME: rag_brain
+      DB_PASSWORD: local_dev_only            # local compose only — warns at boot
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?ADMIN_API_KEY must be set (no dev default allowed under the prod profile)}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5174}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DEFAULT_AI_PROVIDER: ${DEFAULT_AI_PROVIDER:-anthropic}
+      FALLBACK_AI_PROVIDER: ${FALLBACK_AI_PROVIDER:-openai}
+    ports:
+      - "8091:8080"
+    volumes:
+      - rag_brain_docdata:/app/data/documents
+
 volumes:
   rag_brain_pgdata:
+  rag_brain_docdata:
