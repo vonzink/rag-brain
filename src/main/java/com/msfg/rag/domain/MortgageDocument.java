@@ -40,7 +40,7 @@ public class MortgageDocument {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "visibility", nullable = false, length = 20)
-    private SourceVisibility visibility = SourceVisibility.PUBLIC;
+    private SourceVisibility visibility = SourceVisibility.INTERNAL;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "trust_level", nullable = false, length = 20)

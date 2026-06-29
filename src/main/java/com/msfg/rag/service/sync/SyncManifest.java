@@ -19,7 +19,7 @@ public final class SyncManifest {
 
     /** Resolved metadata for one file; dates stay strings until execution. */
     public record Entry(String fileName, boolean ingest, String reason, String title,
-                        String sourceName, String sourceType, String documentVersion,
+                        String sourceName, String sourceType, String visibility, String trustLevel, String documentVersion,
                         String effectiveDate, String expirationDate) {}
 
     private final JsonNode root;
@@ -50,6 +50,8 @@ public final class SyncManifest {
                 text(entry, "title", deriveTitle(fileName)),
                 text(entry, "sourceName", text(defaults, "sourceName", "Generic Knowledge Base")),
                 text(entry, "sourceType", text(defaults, "sourceType", "AGENCY_GUIDELINE")),
+                text(entry, "visibility", text(defaults, "visibility", "INTERNAL")),
+                text(entry, "trustLevel", text(defaults, "trustLevel", "APPROVED")),
                 text(entry, "documentVersion", null),
                 text(entry, "effectiveDate", null),
                 text(entry, "expirationDate", null));

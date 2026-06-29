@@ -34,8 +34,38 @@ class SyncManifestTest {
         assertEquals("FHA Handbook 4000.1", entry.title());
         assertEquals("MSFG KB", entry.sourceName());           // from defaults
         assertEquals("AGENCY_GUIDELINE", entry.sourceType());  // file overrides default
+        assertEquals("INTERNAL", entry.visibility());           // conservative hard fallback
+        assertEquals("APPROVED", entry.trustLevel());
         assertEquals("2026-01-01", entry.effectiveDate());
         assertNull(entry.documentVersion());
+    }
+
+    @Test
+    void entryCanSetVisibilityAndTrustFromDefaultsAndFileOverrides() {
+        String json = """
+                {
+                  "defaults": {
+                    "sourceName": "KB",
+                    "sourceType": "AGENCY_GUIDELINE",
+                    "visibility": "INTERNAL",
+                    "trustLevel": "REFERENCE"
+                  },
+                  "files": {
+                    "public.pdf": {
+                      "visibility": "PUBLIC",
+                      "trustLevel": "AUTHORITATIVE"
+                    }
+                  }
+                }""";
+        SyncManifest manifest = SyncManifest.parse(Optional.of(json.getBytes(StandardCharsets.UTF_8)));
+
+        SyncManifest.Entry publicEntry = manifest.resolve("public.pdf");
+        assertEquals("PUBLIC", publicEntry.visibility());
+        assertEquals("AUTHORITATIVE", publicEntry.trustLevel());
+
+        SyncManifest.Entry defaultEntry = manifest.resolve("internal.pdf");
+        assertEquals("INTERNAL", defaultEntry.visibility());
+        assertEquals("REFERENCE", defaultEntry.trustLevel());
     }
 
     @Test
@@ -56,6 +86,8 @@ class SyncManifestTest {
         assertEquals("va loan guide", entry.title());
         assertEquals("Generic Knowledge Base", entry.sourceName());
         assertEquals("AGENCY_GUIDELINE", entry.sourceType());
+        assertEquals("INTERNAL", entry.visibility());
+        assertEquals("APPROVED", entry.trustLevel());
     }
 
     @Test

@@ -107,6 +107,7 @@ curl -X POST http://localhost:8091/api/ai/public/generic/ask \
   -H "Origin: http://localhost:5174" \
   -H "X-Public-Brain-Token: $PUBLIC_BRAIN_TOKEN" \
   -d '{
+    "conversationId": null,
     "sessionId": "hero-test",
     "message": "What can you help me with?",
     "pageRoute": "/",

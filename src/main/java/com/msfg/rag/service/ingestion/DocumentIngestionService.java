@@ -2,7 +2,9 @@ package com.msfg.rag.service.ingestion;
 
 import com.msfg.rag.domain.DocumentChunk;
 import com.msfg.rag.domain.MortgageDocument;
+import com.msfg.rag.domain.SourceTrustLevel;
 import com.msfg.rag.domain.SourceType;
+import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.service.sync.Sha256;
 import com.msfg.rag.repository.DocumentChunkRepository;
 import com.msfg.rag.repository.MortgageDocumentRepository;
@@ -65,6 +67,8 @@ public class DocumentIngestionService {
                                    String title,
                                    String sourceName,
                                    SourceType sourceType,
+                                   SourceVisibility visibility,
+                                   SourceTrustLevel trustLevel,
                                    String documentVersion,
                                    LocalDate effectiveDate,
                                    LocalDate expirationDate,
@@ -77,6 +81,8 @@ public class DocumentIngestionService {
         document.setTitle(title);
         document.setSourceName(sourceName);
         document.setSourceType(sourceType);
+        document.setVisibility(visibility == null ? SourceVisibility.INTERNAL : visibility);
+        document.setTrustLevel(trustLevel == null ? SourceTrustLevel.APPROVED : trustLevel);
         document.setFileName(fileName);
         document.setS3Key(storageKey);
         document.setDocumentVersion(documentVersion);
@@ -183,6 +189,8 @@ public class DocumentIngestionService {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("source_name", document.getSourceName());
         metadata.put("source_type", document.getSourceType().name());
+        metadata.put("visibility", document.getVisibility().name());
+        metadata.put("trust_level", document.getTrustLevel().name());
         metadata.put("document_name", document.getFileName());
         metadata.put("chunk_type", tc.type().name());
         if (tc.parentIndex() != null) {

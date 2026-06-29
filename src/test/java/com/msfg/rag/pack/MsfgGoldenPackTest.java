@@ -1,8 +1,10 @@
 package com.msfg.rag.pack;
 
+import com.msfg.rag.domain.BrainProfile;
 import com.msfg.rag.service.ai.PromptBuilderService;
 import com.msfg.rag.service.ai.QuestionCategory;
 import com.msfg.rag.service.ai.RulesService;
+import com.msfg.rag.service.profile.BrainProfileService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -215,12 +217,47 @@ class MsfgGoldenPackTest {
         RulesService rulesService = mock(RulesService.class);
         when(rulesService.effectiveHard(DEFAULT_ID)).thenReturn(PACK.hardRules());
         when(rulesService.effectiveGuidance(DEFAULT_ID)).thenReturn(PACK.guidance());
+        BrainProfile profile = new BrainProfile();
+        profile.setBrainId(DEFAULT_ID);
+        profile.setPurpose("Answer from approved sources.");
+        profile.setAudience("public visitor");
+        profile.setPersonality("source-grounded");
+        profile.setTone("professional");
+        profile.setExpertiseLevel("intermediate");
+        profile.setAnswerLength("balanced");
+        profile.setConfidenceTarget(0.9);
+        profile.setClarificationPolicy("Ask when missing facts.");
+        profile.setEscalationPolicy("Escalate unsupported requests.");
+        profile.setCitationPolicy("required_when_sources_used");
+        profile.setCtaPolicy("Suggest useful next steps.");
+        profile.setDisclaimer(PACK.disclaimer());
+        BrainProfileService profiles = mock(BrainProfileService.class);
+        when(profiles.getOrCreate(DEFAULT_ID)).thenReturn(profile);
 
-        String assembled = new PromptBuilderService(TestPacks.registry(), rulesService).build("Q", List.of(), DEFAULT_ID);
+        String assembled = new PromptBuilderService(TestPacks.registry(), rulesService, profiles)
+                .build("Q", List.of(), DEFAULT_ID);
 
         String expected = PACK.promptTemplate().formatted(
-                PACK.hardRules(),
-                PACK.guidance(),
+                PACK.hardRules() + "\n\n" + """
+                        Brain profile:
+                        purpose: Answer from approved sources.
+                        audience: public visitor
+                        personality: source-grounded
+                        tone: professional
+                        expertise_level: intermediate
+                        answer_length: balanced
+                        confidence_target: 0.9
+                        clarification_policy: Ask when missing facts.
+                        escalation_policy: Escalate unsupported requests.
+                        citation_policy: required_when_sources_used
+                        cta_policy: Suggest useful next steps.
+                        profile_disclaimer: %s
+                        """.formatted(PACK.disclaimer()).strip(),
+                PACK.guidance() + "\n\n" + """
+                        Side evidence:
+                        (none)
+                        Do not invent navigation steps or links. Do not treat side links as corpus factual proof.
+                        """.strip(),
                 "(no source context found)",
                 "Q",
                 PACK.disclaimer());

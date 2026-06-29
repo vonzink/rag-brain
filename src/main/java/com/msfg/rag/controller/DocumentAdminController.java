@@ -1,6 +1,7 @@
 package com.msfg.rag.controller;
 
 import com.msfg.rag.domain.MortgageDocument;
+import com.msfg.rag.domain.SourceTrustLevel;
 import com.msfg.rag.domain.SourceType;
 import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.dto.DocumentDto;
@@ -68,6 +69,8 @@ public class DocumentAdminController {
             @RequestParam("title") String title,
             @RequestParam("sourceName") String sourceName,
             @RequestParam("sourceType") SourceType sourceType,
+            @RequestParam(value = "visibility", required = false) SourceVisibility visibility,
+            @RequestParam(value = "trustLevel", required = false) SourceTrustLevel trustLevel,
             @RequestParam(value = "documentVersion", required = false) String documentVersion,
             @RequestParam(value = "effectiveDate", required = false) LocalDate effectiveDate,
             @RequestParam(value = "expirationDate", required = false) LocalDate expirationDate,
@@ -86,6 +89,7 @@ public class DocumentAdminController {
         UUID brainId = brainResolver.resolve(brain).getId();
         MortgageDocument document = ingestionService.ingest(
                 fileName, file.getBytes(), title, sourceName, sourceType,
+                conservativeVisibility(visibility), conservativeTrust(trustLevel),
                 documentVersion, effectiveDate, expirationDate, brainId);
 
         return ResponseEntity.ok(DocumentDto.from(document));
@@ -134,11 +138,21 @@ public class DocumentAdminController {
         if (req.sourceType() == null || req.sourceType().isBlank()) {
             throw new IllegalArgumentException("sourceType is required");
         }
+        if (req.visibility() == null || req.visibility().isBlank()) {
+            throw new IllegalArgumentException("visibility is required");
+        }
+        if (req.trustLevel() == null || req.trustLevel().isBlank()) {
+            throw new IllegalArgumentException("trustLevel is required");
+        }
         SourceType type = SourceType.valueOf(req.sourceType());
+        SourceVisibility visibility = SourceVisibility.valueOf(req.visibility());
+        SourceTrustLevel trustLevel = SourceTrustLevel.valueOf(req.trustLevel());
 
         document.setTitle(req.title().strip());
         document.setSourceName(req.sourceName().strip());
         document.setSourceType(type);
+        document.setVisibility(visibility);
+        document.setTrustLevel(trustLevel);
         document.setDocumentVersion(req.documentVersion());
         document.setEffectiveDate(req.effectiveDate());
         document.setExpirationDate(req.expirationDate());
@@ -172,5 +186,13 @@ public class DocumentAdminController {
                 .orElseThrow(() -> new IllegalArgumentException("Document not found: " + id));
         document.setActive(active);
         return ResponseEntity.ok(DocumentDto.from(documentRepository.save(document)));
+    }
+
+    private SourceVisibility conservativeVisibility(SourceVisibility visibility) {
+        return visibility == null ? SourceVisibility.INTERNAL : visibility;
+    }
+
+    private SourceTrustLevel conservativeTrust(SourceTrustLevel trustLevel) {
+        return trustLevel == null ? SourceTrustLevel.APPROVED : trustLevel;
     }
 }

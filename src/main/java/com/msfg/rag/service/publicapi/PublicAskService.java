@@ -62,7 +62,7 @@ public class PublicAskService {
     }
 
     private static AskRequest toAskRequest(PublicAskRequest req, String surface) {
-        return new AskRequest(null, req.sessionId(), req.message(), null, null, req.pageRoute(), surface);
+        return new AskRequest(req.conversationId(), req.sessionId(), req.message(), null, null, req.pageRoute(), surface);
     }
 
     private static PublicAskResponse mapAnswer(String responseType, AskResponse answer) {

@@ -34,6 +34,12 @@ public class CorsConfig implements WebMvcConfigurer {
                 .allowedHeaders("Content-Type")
                 .maxAge(3600);
 
+        registry.addMapping("/api/ai/public/**")
+                .allowedOrigins(allowedOrigins)
+                .allowedMethods("POST", "OPTIONS")
+                .allowedHeaders("Content-Type", "X-Public-Brain-Token")
+                .maxAge(3600);
+
         registry.addMapping("/api/ai/conversations/**")
                 .allowedOrigins(allowedOrigins)
                 .allowedMethods("GET", "OPTIONS")

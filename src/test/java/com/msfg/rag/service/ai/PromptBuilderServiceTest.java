@@ -1,6 +1,13 @@
 package com.msfg.rag.service.ai;
 
+import com.msfg.rag.domain.BrainPageGuide;
+import com.msfg.rag.domain.BrainProfile;
+import com.msfg.rag.domain.BrainSourceLink;
+import com.msfg.rag.domain.LinkAuthority;
+import com.msfg.rag.domain.Surface;
 import com.msfg.rag.pack.TestPacks;
+import com.msfg.rag.service.profile.BrainProfileService;
+import com.msfg.rag.service.retrieval.PlannedEvidence;
 import com.msfg.rag.service.retrieval.RetrievedChunk;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +25,7 @@ import static org.mockito.Mockito.when;
 class PromptBuilderServiceTest {
 
     private RulesService rulesService;
+    private BrainProfileService profileService;
     private PromptBuilderService promptBuilder;
 
     @BeforeEach
@@ -25,7 +33,9 @@ class PromptBuilderServiceTest {
         rulesService = mock(RulesService.class);
         when(rulesService.effectiveHard(DEFAULT_ID)).thenReturn(TestPacks.msfg().hardRules());
         when(rulesService.effectiveGuidance(DEFAULT_ID)).thenReturn(TestPacks.msfg().guidance());
-        promptBuilder = new PromptBuilderService(TestPacks.registry(), rulesService);
+        profileService = mock(BrainProfileService.class);
+        when(profileService.getOrCreate(DEFAULT_ID)).thenReturn(defaultProfile());
+        promptBuilder = new PromptBuilderService(TestPacks.registry(), rulesService, profileService);
     }
 
     private RetrievedChunk sampleChunk() {
@@ -64,7 +74,84 @@ class PromptBuilderServiceTest {
     @Test
     void includesDisclaimer() {
         String prompt = promptBuilder.build("What is DTI?", List.of(sampleChunk()), DEFAULT_ID);
-        assertTrue(prompt.contains(TestPacks.msfg().disclaimer()));
+        assertTrue(prompt.contains("Profile disclaimer."));
+    }
+
+    @Test
+    void disclaimerUsesProfileBeforePackFallback() {
+        assertEquals("Profile disclaimer.", promptBuilder.disclaimer(DEFAULT_ID));
+    }
+
+    @Test
+    void includesProfileGuidanceFields() {
+        BrainProfile profile = defaultProfile();
+        profile.setPurpose("Help users navigate approved product information.");
+        profile.setAudience("first-time buyer");
+        profile.setPersonality("direct and plainspoken");
+        profile.setTone("warm but precise");
+        profile.setExpertiseLevel("beginner");
+        profile.setAnswerLength("short");
+        profile.setConfidenceTarget(0.82);
+        profile.setClarificationPolicy("Ask one question before guessing.");
+        profile.setEscalationPolicy("Escalate custom qualification advice.");
+        profile.setCitationPolicy("cite every factual claim");
+        profile.setCtaPolicy("Offer the next relevant page.");
+        profile.setDisclaimer("Custom profile disclaimer.");
+        when(profileService.getOrCreate(DEFAULT_ID)).thenReturn(profile);
+
+        String prompt = promptBuilder.build("What is PMI?", List.of(sampleChunk()), DEFAULT_ID);
+
+        assertTrue(prompt.contains("Help users navigate approved product information."));
+        assertTrue(prompt.contains("first-time buyer"));
+        assertTrue(prompt.contains("direct and plainspoken"));
+        assertTrue(prompt.contains("warm but precise"));
+        assertTrue(prompt.contains("beginner"));
+        assertTrue(prompt.contains("short"));
+        assertTrue(prompt.contains("0.82"));
+        assertTrue(prompt.contains("Ask one question before guessing."));
+        assertTrue(prompt.contains("Escalate custom qualification advice."));
+        assertTrue(prompt.contains("cite every factual claim"));
+        assertTrue(prompt.contains("Offer the next relevant page."));
+        assertTrue(prompt.contains("Custom profile disclaimer."));
+    }
+
+    @Test
+    void includesSideEvidenceWithoutTreatingLinksAsCorpusProof() {
+        BrainPageGuide guide = new BrainPageGuide(
+                DEFAULT_ID,
+                "/purchase",
+                "Purchase Guide",
+                "Help users understand purchase loan options.",
+                Surface.PUBLIC,
+                List.of("purchase"),
+                List.of("Review the purchase checklist."),
+                List.of(),
+                List.of(),
+                List.of("purchase"),
+                "test");
+        BrainSourceLink link = new BrainSourceLink(
+                DEFAULT_ID,
+                "HUD Handbook",
+                "https://example.test/hud",
+                "example.test",
+                LinkAuthority.PRIMARY,
+                List.of("pmi"),
+                false,
+                List.of("navigation reference"),
+                List.of("eligibility decisioning"),
+                Surface.PUBLIC,
+                "test");
+
+        String prompt = promptBuilder.build("What is PMI?", List.of(sampleChunk()), DEFAULT_ID,
+                new PlannedEvidence(List.of(guide), List.of(link)));
+
+        assertTrue(prompt.contains("Side evidence"));
+        assertTrue(prompt.contains("Purchase Guide"));
+        assertTrue(prompt.contains("/purchase"));
+        assertTrue(prompt.contains("Review the purchase checklist."));
+        assertTrue(prompt.contains("HUD Handbook"));
+        assertTrue(prompt.contains("https://example.test/hud"));
+        assertTrue(prompt.contains("Do not treat side links as corpus factual proof."));
     }
 
     @Test
@@ -77,11 +164,11 @@ class PromptBuilderServiceTest {
     void composesTemplateSlotsInOrder() {
         String prompt = promptBuilder.build("What is escrow?", List.of(), DEFAULT_ID);
         String expected = TestPacks.msfg().promptTemplate().formatted(
-                TestPacks.msfg().hardRules(),
-                TestPacks.msfg().guidance(),
+                TestPacks.msfg().hardRules() + "\n\n" + promptBuilder.profileGuidance(DEFAULT_ID),
+                TestPacks.msfg().guidance() + "\n\n" + promptBuilder.sideEvidenceGuidance(PlannedEvidence.empty()),
                 "(no source context found)",
                 "What is escrow?",
-                TestPacks.msfg().disclaimer());
+                "Profile disclaimer.");
         assertEquals(expected, prompt);
     }
 
@@ -91,5 +178,23 @@ class PromptBuilderServiceTest {
         String prompt = promptBuilder.build("What is PMI?", List.of(), DEFAULT_ID);
         assertTrue(prompt.contains("ONLY ANSWER IN HAIKU."));
         assertTrue(prompt.contains("What is PMI?"));
+    }
+
+    private BrainProfile defaultProfile() {
+        BrainProfile profile = new BrainProfile();
+        profile.setBrainId(DEFAULT_ID);
+        profile.setPurpose("Answer from approved sources.");
+        profile.setAudience("public visitor");
+        profile.setPersonality("source-grounded");
+        profile.setTone("professional");
+        profile.setExpertiseLevel("intermediate");
+        profile.setAnswerLength("balanced");
+        profile.setConfidenceTarget(0.9);
+        profile.setClarificationPolicy("Ask when missing facts.");
+        profile.setEscalationPolicy("Escalate unsupported requests.");
+        profile.setCitationPolicy("required_when_sources_used");
+        profile.setCtaPolicy("Suggest useful next steps.");
+        profile.setDisclaimer("Profile disclaimer.");
+        return profile;
     }
 }

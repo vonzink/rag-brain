@@ -215,4 +215,25 @@ class PublicAskServiceTest {
         verify(ask, times(1)).ask(requestCaptor.capture(), eq(TestBrains.DEFAULT_ID), eq(SourceVisibility.PUBLIC));
         assertEquals("PUBLIC", requestCaptor.getValue().surface());
     }
+
+    @Test
+    void publicRequestThreadsConversationIdToAskRequest() {
+        Brain brain = new Brain(TestBrains.DEFAULT_ID, "generic", "Generic");
+        UUID conversationId = UUID.randomUUID();
+        when(brains.findBySlug("generic")).thenReturn(Optional.of(brain));
+        when(access.validate(eq(TestBrains.DEFAULT_ID), eq("token"), eq("https://example.com")))
+                .thenReturn(new BrainProfile());
+        when(clarification.decide(eq(TestBrains.DEFAULT_ID), eq("What is PMI?"), eq("PUBLIC"), any()))
+                .thenReturn(ClarificationDecision.answer());
+        when(ask.ask(any(), eq(TestBrains.DEFAULT_ID), eq(SourceVisibility.PUBLIC))).thenReturn(new AskResponse(
+                conversationId, "PMI is mortgage insurance.", List.of(), 0.94, false,
+                "disclaimer", null, List.of(), "next", UUID.randomUUID()));
+
+        service.ask("generic", "token", "https://example.com",
+                new PublicAskRequest(conversationId, "s1", "What is PMI?", "/", "PUBLIC", Map.of()));
+
+        ArgumentCaptor<AskRequest> requestCaptor = ArgumentCaptor.forClass(AskRequest.class);
+        verify(ask).ask(requestCaptor.capture(), eq(TestBrains.DEFAULT_ID), eq(SourceVisibility.PUBLIC));
+        assertEquals(conversationId, requestCaptor.getValue().conversationId());
+    }
 }

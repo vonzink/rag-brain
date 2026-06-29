@@ -150,7 +150,7 @@ public class AskService {
                 brainId, plan, request.question(), request.pageRoute(), request.surface());
 
         // 3. Build the locked prompt and call the model (with fallback).
-        String prompt = promptBuilderService.build(request.question(), retrieval.chunks(), brainId);
+        String prompt = promptBuilderService.build(request.question(), retrieval.chunks(), brainId, sideEvidence);
         ModelRouterService.RoutedResponse routed =
                 modelRouterService.generate(AiRequest.forGuidelineAnswer(prompt), brainId);
 

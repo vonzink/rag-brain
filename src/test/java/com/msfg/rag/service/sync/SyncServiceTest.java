@@ -3,6 +3,8 @@ package com.msfg.rag.service.sync;
 import com.msfg.rag.domain.Brain;
 import com.msfg.rag.domain.MortgageDocument;
 import com.msfg.rag.domain.SourceType;
+import com.msfg.rag.domain.SourceTrustLevel;
+import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.repository.MortgageDocumentRepository;
 import com.msfg.rag.service.ingestion.DocumentIngestionService;
@@ -111,7 +113,7 @@ class SyncServiceTest {
 
         MortgageDocument saved = new MortgageDocument();
         saved.setFileName("policy.pdf");
-        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(saved);
 
         SyncReport report = syncService.sync(false, TestBrains.DEFAULT_ID);
@@ -122,6 +124,8 @@ class SyncServiceTest {
                 eq("Lending Policy"),
                 eq("MSFG Internal"),
                 eq(SourceType.INTERNAL_POLICY),
+                eq(SourceVisibility.INTERNAL),
+                eq(SourceTrustLevel.APPROVED),
                 isNull(),
                 eq(LocalDate.of(2024, 1, 1)),
                 isNull(),
@@ -152,14 +156,14 @@ class SyncServiceTest {
         // Replacement is a distinct object from stale; identity comparison governs (both ids null)
         MortgageDocument replacement = new MortgageDocument();
         replacement.setFileName("guide.pdf");
-        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(replacement);
         when(documentRepository.findByBrainIdAndActiveTrue(any())).thenReturn(List.of(stale));
 
         SyncReport report = syncService.sync(false, TestBrains.DEFAULT_ID);
 
         InOrder order = inOrder(ingestionService, documentRepository);
-        order.verify(ingestionService).ingest(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        order.verify(ingestionService).ingest(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
         order.verify(documentRepository).save(stale);
 
         assertFalse(stale.isActive());
@@ -187,13 +191,13 @@ class SyncServiceTest {
         when(documentRepository.findByBrainId(any())).thenReturn(List.of(stale));
 
         when(ingestionService.ingest(
-                eq("guide.pdf"), any(), any(), any(), any(), any(), any(), any(), any()))
+                eq("guide.pdf"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("embedding-timeout"));
 
         MortgageDocument newDoc = new MortgageDocument();
         newDoc.setFileName("new.pdf");
         when(ingestionService.ingest(
-                eq("new.pdf"), any(), any(), any(), any(), any(), any(), any(), any()))
+                eq("new.pdf"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(newDoc);
 
         SyncReport report = syncService.sync(false, TestBrains.DEFAULT_ID);
@@ -271,7 +275,7 @@ class SyncServiceTest {
 
         MortgageDocument replacement = new MortgageDocument();
         replacement.setFileName("guide.pdf");
-        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(replacement);
         when(documentRepository.findByBrainIdAndActiveTrue(any())).thenReturn(List.of(stale1, stale2));
 
@@ -281,5 +285,52 @@ class SyncServiceTest {
         assertFalse(stale2.isActive(), "stale2 must be deactivated");
         verify(documentRepository, times(2)).save(argThat(d ->
                 d.getFileName().equals("guide.pdf") && !d.isActive()));
+    }
+
+    @Test
+    void uploadIngestsWithManifestVisibilityAndTrust() {
+        byte[] pdfBytes = "PDF-bytes".getBytes();
+        Optional<byte[]> manifest = Optional.of("""
+                {
+                  "defaults":{
+                    "sourceName":"MSFG",
+                    "sourceType":"AGENCY_GUIDELINE",
+                    "visibility":"INTERNAL",
+                    "trustLevel":"REFERENCE"
+                  },
+                  "files":{
+                    "public-policy.pdf":{
+                      "title":"Public Policy",
+                      "visibility":"PUBLIC",
+                      "trustLevel":"AUTHORITATIVE"
+                    }
+                  }
+                }
+                """.getBytes());
+
+        when(corpusSource.fetchManifest()).thenReturn(manifest);
+        when(corpusSource.listFiles()).thenReturn(List.of("public-policy.pdf"));
+        when(corpusSource.fetch("public-policy.pdf")).thenReturn(pdfBytes);
+        when(documentRepository.findByBrainId(any())).thenReturn(List.of());
+
+        MortgageDocument saved = new MortgageDocument();
+        saved.setFileName("public-policy.pdf");
+        when(ingestionService.ingest(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(saved);
+
+        syncService.sync(false, TestBrains.DEFAULT_ID);
+
+        verify(ingestionService).ingest(
+                eq("public-policy.pdf"),
+                eq(pdfBytes),
+                eq("Public Policy"),
+                eq("MSFG"),
+                eq(SourceType.AGENCY_GUIDELINE),
+                eq(SourceVisibility.PUBLIC),
+                eq(SourceTrustLevel.AUTHORITATIVE),
+                isNull(),
+                isNull(),
+                isNull(),
+                eq(TestBrains.DEFAULT_ID));
     }
 }

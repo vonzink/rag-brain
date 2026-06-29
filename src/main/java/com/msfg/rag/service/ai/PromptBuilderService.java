@@ -1,6 +1,11 @@
 package com.msfg.rag.service.ai;
 
+import com.msfg.rag.domain.BrainPageGuide;
+import com.msfg.rag.domain.BrainProfile;
+import com.msfg.rag.domain.BrainSourceLink;
 import com.msfg.rag.pack.DomainPackRegistry;
+import com.msfg.rag.service.profile.BrainProfileService;
+import com.msfg.rag.service.retrieval.PlannedEvidence;
 import com.msfg.rag.service.retrieval.RetrievedChunk;
 import org.springframework.stereotype.Service;
 
@@ -20,25 +25,111 @@ public class PromptBuilderService {
 
     private final DomainPackRegistry registry;
     private final RulesService rules;
+    private final BrainProfileService profiles;
 
-    public PromptBuilderService(DomainPackRegistry registry, RulesService rules) {
+    public PromptBuilderService(DomainPackRegistry registry, RulesService rules, BrainProfileService profiles) {
         this.registry = registry;
         this.rules = rules;
+        this.profiles = profiles;
     }
 
     /** The brain's public disclaimer, appended to every website response. */
     public String disclaimer(UUID brainId) {
+        String profileDisclaimer = profiles.getOrCreate(brainId).getDisclaimer();
+        if (profileDisclaimer != null && !profileDisclaimer.isBlank()) {
+            return profileDisclaimer.strip();
+        }
         return registry.bundle(brainId).pack().disclaimer();
     }
 
     public String build(String question, List<RetrievedChunk> chunks, UUID brainId) {
+        return build(question, chunks, brainId, PlannedEvidence.empty());
+    }
+
+    public String build(String question, List<RetrievedChunk> chunks, UUID brainId, PlannedEvidence evidence) {
         var pack = registry.bundle(brainId).pack();
         return pack.promptTemplate().formatted(
-                rules.effectiveHard(brainId),
-                rules.effectiveGuidance(brainId),
+                rules.effectiveHard(brainId) + "\n\n" + profileGuidance(brainId),
+                rules.effectiveGuidance(brainId) + "\n\n" + sideEvidenceGuidance(evidence),
                 formatContext(chunks),
                 question,
-                pack.disclaimer());
+                disclaimer(brainId));
+    }
+
+    String profileGuidance(UUID brainId) {
+        BrainProfile profile = profiles.getOrCreate(brainId);
+        return """
+                Brain profile:
+                purpose: %s
+                audience: %s
+                personality: %s
+                tone: %s
+                expertise_level: %s
+                answer_length: %s
+                confidence_target: %s
+                clarification_policy: %s
+                escalation_policy: %s
+                citation_policy: %s
+                cta_policy: %s
+                profile_disclaimer: %s
+                """.formatted(
+                safe(profile.getPurpose()),
+                safe(profile.getAudience()),
+                safe(profile.getPersonality()),
+                safe(profile.getTone()),
+                safe(profile.getExpertiseLevel()),
+                safe(profile.getAnswerLength()),
+                profile.getConfidenceTarget(),
+                safe(profile.getClarificationPolicy()),
+                safe(profile.getEscalationPolicy()),
+                safe(profile.getCitationPolicy()),
+                safe(profile.getCtaPolicy()),
+                disclaimer(brainId)).strip();
+    }
+
+    String sideEvidenceGuidance(PlannedEvidence evidence) {
+        if (evidence == null || (evidence.pageGuides().isEmpty() && evidence.links().isEmpty())) {
+            return """
+                    Side evidence:
+                    (none)
+                    Do not invent navigation steps or links. Do not treat side links as corpus factual proof.
+                    """.strip();
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("Side evidence:\n");
+        sb.append("Use this only for navigation, next steps, and allowed links. ");
+        sb.append("Do not treat side links as corpus factual proof.\n");
+        if (!evidence.pageGuides().isEmpty()) {
+            sb.append("Page guides:\n");
+            int n = 1;
+            for (BrainPageGuide guide : evidence.pageGuides()) {
+                sb.append("- [Guide ").append(n++).append("] ");
+                sb.append("title: ").append(safe(guide.getTitle())).append("; ");
+                sb.append("route: ").append(safe(guide.getRoute())).append("; ");
+                sb.append("purpose: ").append(safe(guide.getPurpose()));
+                String guidance = String.join(" | ", guide.getAllowedGuidance());
+                if (!guidance.isBlank()) {
+                    sb.append("; allowed_guidance: ").append(safe(guidance));
+                }
+                sb.append('\n');
+            }
+        }
+        if (!evidence.links().isEmpty()) {
+            sb.append("Allowed source links:\n");
+            int n = 1;
+            for (BrainSourceLink link : evidence.links()) {
+                sb.append("- [Link ").append(n++).append("] ");
+                sb.append("name: ").append(safe(link.getName())).append("; ");
+                sb.append("url: ").append(safe(link.getUrl())).append("; ");
+                sb.append("authority: ").append(link.getAuthority() == null ? "" : link.getAuthority().name());
+                String allowedUse = String.join(" | ", link.getAllowedUse());
+                if (!allowedUse.isBlank()) {
+                    sb.append("; allowed_use: ").append(safe(allowedUse));
+                }
+                sb.append('\n');
+            }
+        }
+        return sb.toString().strip();
     }
 
     /**
@@ -67,5 +158,12 @@ public class PromptBuilderService {
             sb.append("content:\n").append(chunk.content()).append("\n\n");
         }
         return sb.toString().strip();
+    }
+
+    private static String safe(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value.replaceAll("[\\r\\n]+", " ").strip();
     }
 }

@@ -12,6 +12,8 @@ public record DocumentUpdateRequest(
         String title,
         String sourceName,
         String sourceType,
+        String visibility,
+        String trustLevel,
         String documentVersion,
         LocalDate effectiveDate,
         LocalDate expirationDate

@@ -57,6 +57,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -96,7 +97,7 @@ class AskServiceTest {
                 .thenReturn(new RetrievalResult(chunks, 1.0, true));
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
-        when(promptBuilder.build(anyString(), anyList(), any())).thenReturn("PROMPT");
+        when(promptBuilder.build(anyString(), anyList(), any(), any())).thenReturn("PROMPT");
         when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
 
         ModelRouterService router = mock(ModelRouterService.class);
@@ -135,7 +136,7 @@ class AskServiceTest {
         when(retrieval.retrieve(anyString(), any(), any())).thenReturn(RetrievalResult.empty());
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
-        when(promptBuilder.build(anyString(), anyList(), any())).thenReturn("PROMPT");
+        when(promptBuilder.build(anyString(), anyList(), any(), any())).thenReturn("PROMPT");
         when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
 
         ModelRouterService router = mock(ModelRouterService.class);
@@ -268,7 +269,7 @@ class AskServiceTest {
         when(retrieval.retrieve(anyString(), any(), any())).thenReturn(retrievalResult);
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
-        when(promptBuilder.build(anyString(), anyList(), any())).thenReturn("PROMPT");
+        when(promptBuilder.build(anyString(), anyList(), any(), any())).thenReturn("PROMPT");
         when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
 
         ModelRouterService router = mock(ModelRouterService.class);
@@ -325,7 +326,7 @@ class AskServiceTest {
         when(retrieval.retrieve(anyString(), any(), any())).thenReturn(retrievalResult);
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
-        when(promptBuilder.build(anyString(), anyList(), any())).thenReturn("PROMPT");
+        when(promptBuilder.build(anyString(), anyList(), any(), any())).thenReturn("PROMPT");
         when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
 
         ModelRouterService router = mock(ModelRouterService.class);
@@ -432,7 +433,7 @@ class AskServiceTest {
         when(retrieval.retrieve(anyString(), any(), any())).thenReturn(retrievalResult);
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
-        when(promptBuilder.build(anyString(), anyList(), any())).thenReturn("PROMPT");
+        when(promptBuilder.build(anyString(), anyList(), any(), any())).thenReturn("PROMPT");
         when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
 
         ModelRouterService router = mock(ModelRouterService.class);
@@ -470,6 +471,64 @@ class AskServiceTest {
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
 
         verify(retrieval).retrieve(eq("What is PMI?"), eq(TestBrains.DEFAULT_ID), same(SourceVisibility.PUBLIC));
+    }
+
+    @Test
+    void sideEvidenceIsCollectedBeforePromptAndPassedToPromptBuilder() {
+        QuestionClassifierService classifier = mock(QuestionClassifierService.class);
+        when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
+
+        RetrievalService retrieval = mock(RetrievalService.class);
+        List<RetrievedChunk> chunks = List.of(
+                chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1)));
+        when(retrieval.retrieve(anyString(), any(), any())).thenReturn(new RetrievalResult(chunks, 1.0, true));
+
+        PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
+        PlannedEvidence sideEvidence = PlannedEvidence.empty();
+        when(promptBuilder.build(anyString(), anyList(), any(), same(sideEvidence))).thenReturn("PROMPT");
+        when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
+
+        ModelRouterService router = mock(ModelRouterService.class);
+        String groundedJson = """
+                {"answer":"PMI is mortgage insurance.",
+                 "citations":[],
+                 "confidence":0.85,
+                 "human_escalation_required":false,
+                 "disclaimer":"d"}""";
+        AiResponse aiResponse = new AiResponse(groundedJson, "anthropic", "claude", 10, 10);
+        when(router.generate(any(), any()))
+                .thenReturn(new ModelRouterService.RoutedResponse(aiResponse, false));
+
+        AuditLogService audit = mock(AuditLogService.class);
+        ConversationRepository conversations = mock(ConversationRepository.class);
+        when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        MessageRepository messages = mock(MessageRepository.class);
+        when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
+        when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        IntentRouterService intentRouter = mock(IntentRouterService.class);
+        when(intentRouter.route(anyString(), any(), any())).thenReturn(Intent.GUIDELINE_QUESTION);
+        var planner = mock(com.msfg.rag.service.retrieval.RetrievalPlannerService.class);
+        RetrievalPlan plan = new RetrievalPlan(Set.of(SourceKind.CORPUS));
+        when(planner.plan(any(), any(), any())).thenReturn(plan);
+        when(planner.collect(eq(TestBrains.DEFAULT_ID), eq(plan), eq("What is PMI?"), any(), any()))
+                .thenReturn(sideEvidence);
+        VocabularyService vocabulary = mock(VocabularyService.class);
+        when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
+        RagTraceService trace = traceService();
+
+        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+                new AnswerValidationService(TestPacks.registry()), audit,
+                conversations, messages, sources, new ObjectMapper(),
+                intentRouter, planner, new OutputContractService(), vocabulary, trace);
+
+        service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
+
+        var order = inOrder(planner, promptBuilder, router);
+        order.verify(planner).collect(eq(TestBrains.DEFAULT_ID), eq(plan), eq("What is PMI?"), any(), any());
+        order.verify(promptBuilder).build(eq("What is PMI?"), eq(chunks), eq(TestBrains.DEFAULT_ID), same(sideEvidence));
+        order.verify(router).generate(any(), eq(TestBrains.DEFAULT_ID));
     }
 
     @Test

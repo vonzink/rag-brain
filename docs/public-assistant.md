@@ -20,6 +20,7 @@ Request:
 
 ```json
 {
+  "conversationId": null,
   "sessionId": "hero-test",
   "message": "What can you help me with?",
   "pageRoute": "/",
@@ -30,6 +31,7 @@ Request:
 
 Field notes:
 
+- `conversationId` is optional. Send the `conversationId` returned by the previous response to continue that conversation.
 - `sessionId` is required and should stay stable for the current website visitor session.
 - `message` is the visitor's question.
 - `pageRoute` is optional page context from the website.

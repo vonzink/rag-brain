@@ -2,7 +2,9 @@ package com.msfg.rag.service.sync;
 
 import com.msfg.rag.domain.Brain;
 import com.msfg.rag.domain.MortgageDocument;
+import com.msfg.rag.domain.SourceTrustLevel;
 import com.msfg.rag.domain.SourceType;
+import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.repository.MortgageDocumentRepository;
 import com.msfg.rag.service.ingestion.DocumentIngestionService;
@@ -123,6 +125,8 @@ public class SyncService {
                 meta.title(),
                 meta.sourceName(),
                 SourceType.valueOf(meta.sourceType()),
+                SourceVisibility.valueOf(meta.visibility()),
+                SourceTrustLevel.valueOf(meta.trustLevel()),
                 meta.documentVersion(),
                 meta.effectiveDate() == null ? null : LocalDate.parse(meta.effectiveDate()),
                 meta.expirationDate() == null ? null : LocalDate.parse(meta.expirationDate()),

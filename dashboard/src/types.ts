@@ -25,6 +25,7 @@ export interface BrainProfileDto {
 export type BrainProfileRequest = Omit<BrainProfileDto, "brainId">;
 
 export interface PublicAskRequest {
+  conversationId?: string | null;
   sessionId: string;
   message: string;
   pageRoute: string | null;
@@ -53,6 +54,8 @@ export interface PublicAskResponse {
 
 export interface DocumentDto {
   id: string; title: string; sourceName: string; sourceType: string;
+  visibility: "PUBLIC" | "INTERNAL" | "SECURE";
+  trustLevel: "AUTHORITATIVE" | "APPROVED" | "REFERENCE" | "EXPERIMENTAL" | "BLOCKED";
   fileName: string; documentVersion: string | null;
   effectiveDate: string | null; expirationDate: string | null; active: boolean;
 }
@@ -122,6 +125,8 @@ export interface VocabRevisionDto {
 }
 export interface DocumentUpdate {
   title: string; sourceName: string; sourceType: string;
+  visibility: "PUBLIC" | "INTERNAL" | "SECURE";
+  trustLevel: "AUTHORITATIVE" | "APPROVED" | "REFERENCE" | "EXPERIMENTAL" | "BLOCKED";
   documentVersion: string | null;
   effectiveDate: string | null; expirationDate: string | null;
 }

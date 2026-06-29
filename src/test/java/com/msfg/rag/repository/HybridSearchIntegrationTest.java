@@ -151,9 +151,9 @@ class HybridSearchIntegrationTest {
         UUID otherDocId = UUID.randomUUID();
         entityManager.createNativeQuery("""
                 INSERT INTO brain_documents
-                    (id, title, source_name, source_type, file_name, effective_date, is_active, brain_id)
+                    (id, title, source_name, source_type, visibility, trust_level, file_name, effective_date, is_active, brain_id)
                 VALUES (:id, 'Other Guide', 'Other Brain Source', 'AGENCY_GUIDELINE',
-                        'other.pdf', CURRENT_DATE, TRUE, :brain)
+                        'PUBLIC', 'APPROVED', 'other.pdf', CURRENT_DATE, TRUE, :brain)
                 """).setParameter("id", otherDocId).setParameter("brain", otherBrain).executeUpdate();
         UUID otherChunkId = UUID.randomUUID();
         entityManager.createNativeQuery("""

@@ -16,6 +16,8 @@ export default function Corpus({ stats, onCorpusChanged }:
   const [addTitle, setAddTitle] = useState("");
   const [addSourceName, setAddSourceName] = useState("");
   const [addSourceType, setAddSourceType] = useState("AGENCY_GUIDELINE");
+  const [addVisibility, setAddVisibility] = useState<"PUBLIC" | "INTERNAL" | "SECURE">("INTERNAL");
+  const [addTrustLevel, setAddTrustLevel] = useState<"AUTHORITATIVE" | "APPROVED" | "REFERENCE" | "EXPERIMENTAL" | "BLOCKED">("APPROVED");
   const [addEffectiveDate, setAddEffectiveDate] = useState("");
 
   async function submitAdd(e: React.FormEvent) {
@@ -29,10 +31,13 @@ export default function Corpus({ stats, onCorpusChanged }:
       form.append("title", addTitle.trim());
       form.append("sourceName", addSourceName.trim());
       form.append("sourceType", addSourceType);
+      form.append("visibility", addVisibility);
+      form.append("trustLevel", addTrustLevel);
       if (addEffectiveDate) form.append("effectiveDate", addEffectiveDate);
       await api.upload("/api/ai/documents/upload", form);
       setShowAdd(false);
-      setAddFile(null); setAddTitle(""); setAddSourceName(""); setAddEffectiveDate("");
+      setAddFile(null); setAddTitle(""); setAddSourceName(""); setAddVisibility("INTERNAL");
+      setAddTrustLevel("APPROVED"); setAddEffectiveDate("");
       reload(); onCorpusChanged();
     } catch (e) {
       setError((e as Error).message);
@@ -45,6 +50,7 @@ export default function Corpus({ stats, onCorpusChanged }:
   const [editBusy, setEditBusy] = useState(false);
   const [editForm, setEditForm] = useState<DocumentUpdate>({
     title: "", sourceName: "", sourceType: "AGENCY_GUIDELINE",
+    visibility: "INTERNAL", trustLevel: "APPROVED",
     documentVersion: null, effectiveDate: null, expirationDate: null,
   });
 
@@ -52,6 +58,7 @@ export default function Corpus({ stats, onCorpusChanged }:
     setEditing(d);
     setEditForm({
       title: d.title, sourceName: d.sourceName, sourceType: d.sourceType,
+      visibility: d.visibility, trustLevel: d.trustLevel,
       documentVersion: d.documentVersion, effectiveDate: d.effectiveDate,
       expirationDate: d.expirationDate,
     });
@@ -155,6 +162,20 @@ export default function Corpus({ stats, onCorpusChanged }:
             <option value="INVESTOR_OVERLAY">investor overlay</option>
             <option value="EDUCATIONAL">educational</option>
           </select>
+          <select value={addVisibility}
+                  onChange={(e) => setAddVisibility(e.target.value as typeof addVisibility)}>
+            <option value="INTERNAL">internal</option>
+            <option value="PUBLIC">public</option>
+            <option value="SECURE">secure</option>
+          </select>
+          <select value={addTrustLevel}
+                  onChange={(e) => setAddTrustLevel(e.target.value as typeof addTrustLevel)}>
+            <option value="APPROVED">approved</option>
+            <option value="AUTHORITATIVE">authoritative</option>
+            <option value="REFERENCE">reference</option>
+            <option value="EXPERIMENTAL">experimental</option>
+            <option value="BLOCKED">blocked</option>
+          </select>
           <input type="date" value={addEffectiveDate}
                  onChange={(e) => setAddEffectiveDate(e.target.value)} />
           <button className="btn-primary" type="submit"
@@ -186,7 +207,7 @@ export default function Corpus({ stats, onCorpusChanged }:
       )}
       <table className="tbl">
         <thead>
-          <tr><th>Document</th><th>Source type</th><th>Effective</th><th>Status</th><th></th></tr>
+          <tr><th>Document</th><th>Source type</th><th>Visibility</th><th>Trust</th><th>Effective</th><th>Status</th><th></th></tr>
         </thead>
         <tbody>
           {docs.map((d) => (
@@ -194,6 +215,10 @@ export default function Corpus({ stats, onCorpusChanged }:
               <td title={d.fileName}>{d.title}</td>
               <td><Pill tone={d.sourceType === "INTERNAL_POLICY" ? "purple" : "blue"}>
                 {d.sourceType.replaceAll("_", " ").toLowerCase()}</Pill></td>
+              <td><Pill tone={d.visibility === "PUBLIC" ? "green" : d.visibility === "SECURE" ? "amber" : "gray"}>
+                {d.visibility.toLowerCase()}</Pill></td>
+              <td><Pill tone={d.trustLevel === "BLOCKED" ? "amber" : d.trustLevel === "AUTHORITATIVE" ? "green" : "blue"}>
+                {d.trustLevel.replaceAll("_", " ").toLowerCase()}</Pill></td>
               <td>{d.effectiveDate ?? "—"}</td>
               <td><Pill tone={d.active ? "green" : "gray"}>{d.active ? "active" : "inactive"}</Pill></td>
               <td className="row-actions">
@@ -227,6 +252,20 @@ export default function Corpus({ stats, onCorpusChanged }:
               <option value="INTERNAL_POLICY">internal policy</option>
               <option value="INVESTOR_OVERLAY">investor overlay</option>
               <option value="EDUCATIONAL">educational</option>
+            </select>
+            <select value={editForm.visibility}
+                    onChange={(e) => setEditForm({ ...editForm, visibility: e.target.value as DocumentUpdate["visibility"] })}>
+              <option value="INTERNAL">internal</option>
+              <option value="PUBLIC">public</option>
+              <option value="SECURE">secure</option>
+            </select>
+            <select value={editForm.trustLevel}
+                    onChange={(e) => setEditForm({ ...editForm, trustLevel: e.target.value as DocumentUpdate["trustLevel"] })}>
+              <option value="APPROVED">approved</option>
+              <option value="AUTHORITATIVE">authoritative</option>
+              <option value="REFERENCE">reference</option>
+              <option value="EXPERIMENTAL">experimental</option>
+              <option value="BLOCKED">blocked</option>
             </select>
             <input placeholder="Version" value={editForm.documentVersion ?? ""}
                    onChange={(e) => setEditForm({ ...editForm, documentVersion: e.target.value || null })} />

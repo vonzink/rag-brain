@@ -34,6 +34,19 @@ class CorsConfigTest {
     }
 
     @Test
+    void exposesPublicAssistantPathWithPublicTokenHeader() {
+        Map<String, CorsConfiguration> mappings = register("mortgage");
+
+        assertTrue(mappings.containsKey("/api/ai/public/**"),
+                "public assistant endpoint must handle browser preflight");
+        CorsConfiguration config = mappings.get("/api/ai/public/**");
+        assertTrue(config.getAllowedMethods().contains("POST"));
+        assertTrue(config.getAllowedMethods().contains("OPTIONS"));
+        assertTrue(config.getAllowedHeaders().contains("Content-Type"));
+        assertTrue(config.getAllowedHeaders().contains("X-Public-Brain-Token"));
+    }
+
+    @Test
     void followsTheConfiguredSlug() {
         Map<String, CorsConfiguration> mappings = register("roofing");
 
