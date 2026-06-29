@@ -50,6 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -176,7 +177,7 @@ class AskServiceTest {
         RagTrace row = mock(RagTrace.class);
         when(row.getId()).thenReturn(UUID.randomUUID());
         when(trace.record(any(), any(), anyString(), any(), any(), any(), anyList(),
-                any(), anyList(), anyString(), any(), anyBoolean(), any(), any(), any(), any(), anyString()))
+                any(), anyList(), anyString(), any(), anyBoolean(), any(), any(), any(), anyMap(), any(), anyString()))
                 .thenReturn(row);
         return trace;
     }
@@ -305,8 +306,64 @@ class AskServiceTest {
         verify(trace).record(any(), eq(TestBrains.DEFAULT_ID), eq("What is PMI?"), eq("expanded question"),
                 eq(Intent.GUIDELINE_QUESTION), any(), anyList(), any(), anyList(), eq("PMI is mortgage insurance."),
                 eq(0.85), eq(false), eq(ResponseType.ANSWER), eq(ClarificationDecision.answer()),
-                eq(SourceVisibility.INTERNAL), eq(Map.of("retrieval_confidence", 0.73, "source_count", 1)),
+                eq(SourceVisibility.INTERNAL), eq(Map.of()),
+                eq(Map.of("retrieval_confidence", 0.73, "source_count", 1)),
                 eq("valid"));
+    }
+
+    @Test
+    void answerTraceSetsCollectedFactsToEmptyMap() {
+        QuestionClassifierService classifier = mock(QuestionClassifierService.class);
+        when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
+
+        RetrievalService retrieval = mock(RetrievalService.class);
+        RetrievalResult retrievalResult = new RetrievalResult(List.of(
+                chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1))
+        ), 0.73, true);
+        when(retrieval.retrieve(anyString(), any(), any())).thenReturn(retrievalResult);
+
+        PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
+        when(promptBuilder.build(anyString(), anyList(), any())).thenReturn("PROMPT");
+        when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
+
+        ModelRouterService router = mock(ModelRouterService.class);
+        String groundedJson = """
+                {"answer":"PMI is mortgage insurance.",
+                 "citations":[],
+                 "confidence":0.85,
+                 "human_escalation_required":false,
+                 "disclaimer":"d"}""";
+        AiResponse aiResponse = new AiResponse(groundedJson, "anthropic", "claude", 10, 10);
+        when(router.generate(any(), any()))
+                .thenReturn(new ModelRouterService.RoutedResponse(aiResponse, false));
+
+        AuditLogService audit = mock(AuditLogService.class);
+
+        ConversationRepository conversations = mock(ConversationRepository.class);
+        when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        MessageRepository messages = mock(MessageRepository.class);
+        when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
+        when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        IntentRouterService intentRouter = mock(IntentRouterService.class);
+        when(intentRouter.route(anyString(), any(), any())).thenReturn(Intent.GUIDELINE_QUESTION);
+        RetrievalPlannerServiceMocks plannerMocks = plannerMocks();
+        VocabularyService vocabulary = mock(VocabularyService.class);
+        when(vocabulary.previewExpansion(any(), anyString())).thenReturn("expanded question");
+        RagTraceService trace = traceService();
+
+        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+                new AnswerValidationService(TestPacks.registry()), audit,
+                conversations, messages, sources, new ObjectMapper(),
+                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+
+        service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.INTERNAL);
+
+        verify(trace).record(any(), eq(TestBrains.DEFAULT_ID), eq("What is PMI?"), eq("expanded question"),
+                eq(Intent.GUIDELINE_QUESTION), any(), anyList(), any(), anyList(), eq("PMI is mortgage insurance."),
+                eq(0.85), eq(false), eq(ResponseType.ANSWER), eq(ClarificationDecision.answer()),
+                eq(SourceVisibility.INTERNAL), eq(Map.of()), anyMap(), eq("valid"));
     }
 
     @Test

@@ -42,15 +42,18 @@ public class PublicAskService {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown brain: " + slug));
         access.validate(brain.getId(), token, origin);
         String surface = SourceVisibility.PUBLIC.name();
+        Map<String, Object> facts = req.facts() == null ? Map.of() : req.facts();
         ClarificationDecision decision = clarification.decide(
-                brain.getId(), req.message(), surface, req.facts() == null ? Map.of() : req.facts());
+                brain.getId(), req.message(), surface, facts);
         if (decision.responseType() == ResponseType.CLARIFY) {
-            traceService.recordPublicDecision(brain.getId(), req.sessionId(), req.message(),
+            traceService.recordPublicDecision(brain.getId(), req.sessionId(), req.message(), facts,
                     decision, SourceVisibility.PUBLIC);
             return new PublicAskResponse("CLARIFY", decision.question(), null, decision.question(),
                     decision.missingFacts(), List.of(), List.of(), 0.0, null, null);
         }
         if (decision.responseType() == ResponseType.NAVIGATE) {
+            traceService.recordPublicDecision(brain.getId(), req.sessionId(), req.message(), facts,
+                    decision, SourceVisibility.PUBLIC);
             AskResponse answer = askService.ask(toAskRequest(req, surface), brain.getId(), SourceVisibility.PUBLIC);
             return mapAnswer("NAVIGATE", answer);
         }

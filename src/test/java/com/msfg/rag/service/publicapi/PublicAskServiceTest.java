@@ -3,6 +3,7 @@ package com.msfg.rag.service.publicapi;
 import com.msfg.rag.TestBrains;
 import com.msfg.rag.domain.Brain;
 import com.msfg.rag.domain.BrainProfile;
+import com.msfg.rag.domain.RagTrace;
 import com.msfg.rag.domain.ResponseType;
 import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.dto.AskRequest;
@@ -24,6 +25,7 @@ import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -75,7 +77,61 @@ class PublicAskServiceTest {
                 new PublicAskRequest("s1", "Can I qualify?", "/", "PUBLIC", Map.of()));
 
         verify(traceService).recordPublicDecision(eq(TestBrains.DEFAULT_ID), eq("s1"),
-                eq("Can I qualify?"), any(), eq(SourceVisibility.PUBLIC));
+                eq("Can I qualify?"), eq(Map.of()), any(), eq(SourceVisibility.PUBLIC));
+    }
+
+    @Test
+    void clarificationTraceIncludesSuppliedFactsAndSessionId() {
+        Brain brain = new Brain(TestBrains.DEFAULT_ID, "generic", "Generic");
+        RagTrace trace = mock(RagTrace.class);
+        when(traceService.recordPublicDecision(any(), any(), any(), any(), any(), any()))
+                .thenReturn(trace);
+        when(brains.findBySlug("generic")).thenReturn(Optional.of(brain));
+        when(access.validate(eq(TestBrains.DEFAULT_ID), eq("token"), eq("https://example.com")))
+                .thenReturn(new BrainProfile());
+        when(clarification.decide(eq(TestBrains.DEFAULT_ID), eq("Can I qualify?"), eq("PUBLIC"), any()))
+                .thenReturn(new ClarificationDecision(ResponseType.CLARIFY,
+                        "What is the occupancy?", List.of("occupancy"), Map.of("topic", "eligibility")));
+
+        service.ask("generic", "token", "https://example.com",
+                new PublicAskRequest("s1", "Can I qualify?", "/", "PUBLIC",
+                        Map.of("loan_type", "FHA", "state", "CO")));
+
+        verify(traceService).recordPublicDecision(eq(TestBrains.DEFAULT_ID), eq("s1"),
+                eq("Can I qualify?"),
+                argThat(facts -> facts.equals(Map.of("loan_type", "FHA", "state", "CO"))),
+                any(), eq(SourceVisibility.PUBLIC));
+    }
+
+    @Test
+    void navigateResponseRecordsPublicDecisionTraceBeforeAnswering() {
+        Brain brain = new Brain(TestBrains.DEFAULT_ID, "generic", "Generic");
+        RagTrace trace = mock(RagTrace.class);
+        when(trace.getId()).thenReturn(UUID.randomUUID());
+        when(traceService.recordPublicDecision(any(), any(), any(), any(), any(), any()))
+                .thenReturn(trace);
+        when(brains.findBySlug("generic")).thenReturn(Optional.of(brain));
+        when(access.validate(eq(TestBrains.DEFAULT_ID), eq("token"), eq("https://example.com")))
+                .thenReturn(new BrainProfile());
+        when(clarification.decide(eq(TestBrains.DEFAULT_ID), eq("Where should I go next?"), eq("PUBLIC"), any()))
+                .thenReturn(new ClarificationDecision(ResponseType.NAVIGATE,
+                        "Go to purchase loans.", List.of(), Map.of("reason", "matched route")));
+        when(ask.ask(any(), eq(TestBrains.DEFAULT_ID), eq(SourceVisibility.PUBLIC))).thenReturn(new AskResponse(
+                UUID.randomUUID(), "Go to purchase loans.", List.of(), 0.94, false,
+                "disclaimer", null, List.of(), "next", UUID.randomUUID()));
+
+        var response = service.ask("generic", "token", "https://example.com",
+                new PublicAskRequest("s1", "Where should I go next?", "/", "PUBLIC",
+                        Map.of("current_page", "/")));
+
+        assertEquals("NAVIGATE", response.responseType());
+        verify(traceService).recordPublicDecision(eq(TestBrains.DEFAULT_ID), eq("s1"),
+                eq("Where should I go next?"),
+                argThat(facts -> facts.equals(Map.of("current_page", "/"))),
+                eq(new ClarificationDecision(ResponseType.NAVIGATE,
+                        "Go to purchase loans.", List.of(), Map.of("reason", "matched route"))),
+                eq(SourceVisibility.PUBLIC));
+        verify(ask).ask(any(), eq(TestBrains.DEFAULT_ID), eq(SourceVisibility.PUBLIC));
     }
 
     @Test

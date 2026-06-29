@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -84,7 +85,7 @@ class AskServiceBrainTest {
         RagTrace row = mock(RagTrace.class);
         when(row.getId()).thenReturn(UUID.randomUUID());
         when(trace.record(any(), any(), anyString(), any(), any(), any(), anyList(),
-                any(), anyList(), anyString(), any(), anyBoolean(), any(), any(), any(), any(), anyString()))
+                any(), anyList(), anyString(), any(), anyBoolean(), any(), any(), any(), anyMap(), any(), anyString()))
                 .thenReturn(row);
         when(conversations.save(any())).thenAnswer(inv -> {
             Conversation c = inv.getArgument(0);

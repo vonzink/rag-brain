@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,6 +44,7 @@ public class RagTraceService {
                            ResponseType responseType,
                            ClarificationDecision clarificationDecision,
                            SourceVisibility visibility,
+                           Map<String, Object> collectedFacts,
                            Map<String, Object> confidenceReason,
                            String validationOutcome) {
         RagTrace trace = new RagTrace();
@@ -89,6 +91,7 @@ public class RagTraceService {
         trace.setMissingFacts(clarificationDecision == null
                 ? List.of()
                 : clarificationDecision.missingFacts());
+        trace.setCollectedFacts(collectedFacts == null ? Map.of() : Map.copyOf(collectedFacts));
         trace.setVisibilityFilter(visibility == null ? SourceVisibility.PUBLIC.name() : visibility.name());
         trace.setConfidenceReason(confidenceReason == null
                 ? Map.of("confidence", confidence == null ? 0.0 : confidence)
@@ -102,15 +105,21 @@ public class RagTraceService {
     public RagTrace recordPublicDecision(UUID brainId,
                                          String sessionId,
                                          String userQuestion,
+                                         Map<String, Object> suppliedFacts,
                                          ClarificationDecision decision,
                                          SourceVisibility visibility) {
         RagTrace trace = new RagTrace();
+        Map<String, Object> collectedFacts = new LinkedHashMap<>();
+        if (suppliedFacts != null) {
+            collectedFacts.putAll(suppliedFacts);
+        }
+        collectedFacts.put("session_id", sessionId);
         trace.setBrainId(brainId);
         trace.setUserQuestion(userQuestion);
         trace.setResponseType(decision.responseType().name());
         trace.setClarificationDecision(decision.reason());
         trace.setMissingFacts(decision.missingFacts());
-        trace.setCollectedFacts(Map.of("session_id", sessionId));
+        trace.setCollectedFacts(Map.copyOf(collectedFacts));
         trace.setRetrievedContext(List.of());
         trace.setVisibilityFilter(visibility.name());
         trace.setConfidenceReason(Map.of("reason", "pre-retrieval public decision"));

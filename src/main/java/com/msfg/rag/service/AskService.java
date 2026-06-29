@@ -216,7 +216,7 @@ public class AskService {
         UUID traceId = ragTraceService.record(conversation.getId(), conversation.getBrainId(),
                 request.question(), rewrittenQuestion, intent, plan, retrieval.chunks(), sideEvidence,
                 citations, modelAnswer.answer(), confidence, escalate,
-                ResponseType.ANSWER, ClarificationDecision.answer(), visibility,
+                ResponseType.ANSWER, ClarificationDecision.answer(), visibility, Map.of(),
                 Map.of("retrieval_confidence", retrieval.confidence(), "source_count", retrieval.chunks().size()),
                 "valid").getId();
 
@@ -262,7 +262,7 @@ public class AskService {
         UUID traceId = ragTraceService.record(conversation.getId(), conversation.getBrainId(),
                 request.question(), rewrittenQuestion, intent, plan, retrieval.chunks(), sideEvidence,
                 List.of(), answerText, retrieval.confidence(), true,
-                ResponseType.ESCALATE, null, visibility,
+                ResponseType.ESCALATE, null, visibility, Map.of(),
                 Map.of("reason", reason), reason).getId();
 
         return new AskResponse(conversation.getId(), answerText, List.of(),
