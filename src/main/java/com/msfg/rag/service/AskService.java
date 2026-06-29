@@ -262,7 +262,12 @@ public class AskService {
         UUID traceId = ragTraceService.record(conversation.getId(), conversation.getBrainId(),
                 request.question(), rewrittenQuestion, intent, plan, retrieval.chunks(), sideEvidence,
                 List.of(), answerText, retrieval.confidence(), true,
-                ResponseType.ESCALATE, null, visibility, Map.of(),
+                ResponseType.ESCALATE, new ClarificationDecision(
+                        ResponseType.ESCALATE,
+                        null,
+                        List.of(),
+                        Map.of("decision", "escalate", "reason", reason)),
+                visibility, Map.of(),
                 Map.of("reason", reason), reason).getId();
 
         return new AskResponse(conversation.getId(), answerText, List.of(),

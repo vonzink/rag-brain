@@ -14,8 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -86,12 +86,12 @@ public class RagTraceService {
         trace.setFinalAnswer(finalAnswer);
         trace.setConfidenceScore(confidence);
         trace.setClarificationDecision(clarificationDecision == null
-                ? Map.of("decision", "answer")
+                ? defaultClarificationDecision(responseType)
                 : clarificationDecision.reason());
         trace.setMissingFacts(clarificationDecision == null
                 ? List.of()
                 : clarificationDecision.missingFacts());
-        trace.setCollectedFacts(collectedFacts == null ? Map.of() : Map.copyOf(collectedFacts));
+        trace.setCollectedFacts(immutableFacts(collectedFacts));
         trace.setVisibilityFilter(visibility == null ? SourceVisibility.PUBLIC.name() : visibility.name());
         trace.setConfidenceReason(confidenceReason == null
                 ? Map.of("confidence", confidence == null ? 0.0 : confidence)
@@ -111,20 +111,46 @@ public class RagTraceService {
         RagTrace trace = new RagTrace();
         Map<String, Object> collectedFacts = new LinkedHashMap<>();
         if (suppliedFacts != null) {
-            collectedFacts.putAll(suppliedFacts);
+            suppliedFacts.forEach((key, value) -> {
+                if (key != null && value != null) {
+                    collectedFacts.put(key, value);
+                }
+            });
         }
-        collectedFacts.put("session_id", sessionId);
+        if (sessionId != null) {
+            collectedFacts.put("session_id", sessionId);
+        }
         trace.setBrainId(brainId);
         trace.setUserQuestion(userQuestion);
         trace.setResponseType(decision.responseType().name());
         trace.setClarificationDecision(decision.reason());
         trace.setMissingFacts(decision.missingFacts());
-        trace.setCollectedFacts(Map.copyOf(collectedFacts));
+        trace.setCollectedFacts(immutableFacts(collectedFacts));
         trace.setRetrievedContext(List.of());
         trace.setVisibilityFilter(visibility.name());
         trace.setConfidenceReason(Map.of("reason", "pre-retrieval public decision"));
         trace.setValidationOutcome("not_applicable");
         trace.setHumanEscalationRequired(decision.responseType() == ResponseType.ESCALATE);
         return repository.save(trace);
+    }
+
+    private static Map<String, Object> immutableFacts(Map<String, Object> facts) {
+        if (facts == null || facts.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> filtered = new LinkedHashMap<>();
+        facts.forEach((key, value) -> {
+            if (key != null && value != null) {
+                filtered.put(key, value);
+            }
+        });
+        return filtered.isEmpty() ? Map.of() : Map.copyOf(filtered);
+    }
+
+    private static Map<String, Object> defaultClarificationDecision(ResponseType responseType) {
+        if (responseType == ResponseType.ESCALATE) {
+            return Map.of("decision", "escalate");
+        }
+        return Map.of("decision", "answer");
     }
 }

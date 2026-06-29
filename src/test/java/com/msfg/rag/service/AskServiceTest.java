@@ -34,6 +34,7 @@ import com.msfg.rag.service.retrieval.VocabularyService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 
 import com.msfg.rag.TestBrains;
 
@@ -45,6 +46,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -364,6 +366,58 @@ class AskServiceTest {
                 eq(Intent.GUIDELINE_QUESTION), any(), anyList(), any(), anyList(), eq("PMI is mortgage insurance."),
                 eq(0.85), eq(false), eq(ResponseType.ANSWER), eq(ClarificationDecision.answer()),
                 eq(SourceVisibility.INTERNAL), eq(Map.of()), anyMap(), eq("valid"));
+    }
+
+    @Test
+    void refusalTraceRecordsExplicitEscalationDecisionMetadata() {
+        QuestionClassifierService classifier = mock(QuestionClassifierService.class);
+        when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.LEGAL);
+
+        RetrievalService retrieval = mock(RetrievalService.class);
+        when(retrieval.retrieve(anyString(), any(), any())).thenReturn(RetrievalResult.empty());
+
+        PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
+        when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
+
+        ModelRouterService router = mock(ModelRouterService.class);
+        AuditLogService audit = mock(AuditLogService.class);
+
+        ConversationRepository conversations = mock(ConversationRepository.class);
+        when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        MessageRepository messages = mock(MessageRepository.class);
+        when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
+        when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        IntentRouterService intentRouter = mock(IntentRouterService.class);
+        when(intentRouter.route(anyString(), any(), any())).thenReturn(Intent.GUIDELINE_QUESTION);
+        RetrievalPlannerServiceMocks plannerMocks = plannerMocks();
+        VocabularyService vocabulary = mock(VocabularyService.class);
+        when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
+        RagTraceService trace = traceService();
+
+        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+                new AnswerValidationService(TestPacks.registry()), audit,
+                conversations, messages, sources, new ObjectMapper(),
+                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+
+        service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.INTERNAL);
+
+        ArgumentCaptor<ClarificationDecision> decisionCaptor = ArgumentCaptor.forClass(ClarificationDecision.class);
+        ArgumentCaptor<String> outcomeCaptor = ArgumentCaptor.forClass(String.class);
+
+        verify(trace).record(any(), eq(TestBrains.DEFAULT_ID), eq("What is PMI?"), any(), any(), any(), anyList(),
+                any(), anyList(), eq(TestPacks.msfg().guardrails().cannedAnswers().legal()), any(), eq(true),
+                eq(ResponseType.ESCALATE), decisionCaptor.capture(), eq(SourceVisibility.INTERNAL), eq(Map.of()),
+                eq(Map.of("reason", "classified as LEGAL")), outcomeCaptor.capture());
+
+        ClarificationDecision decision = decisionCaptor.getValue();
+        assertEquals(ResponseType.ESCALATE, decision.responseType());
+        assertNull(decision.question());
+        assertEquals(List.of(), decision.missingFacts());
+        assertInstanceOf(Map.class, decision.reason());
+        assertEquals(Map.of("decision", "escalate", "reason", "classified as LEGAL"), decision.reason());
+        assertEquals("classified as LEGAL", outcomeCaptor.getValue());
     }
 
     @Test

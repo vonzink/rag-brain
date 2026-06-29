@@ -35,6 +35,33 @@ Verification:
 
 Result:
 - Focused tests passed.
+
+---
+
+Status: DONE
+
+Task 6 review follow-up fix:
+- Refusal traces now record explicit escalation clarification metadata from `AskService.refuse(...)` instead of relying on the trace-service fallback.
+- `RagTraceService` now sanitizes collected facts before freezing them, so null-valued public facts no longer blow up `recordPublicDecision(...)`.
+- Added regression coverage for both the refusal trace metadata and null-safe public-decision fact handling.
+
+Changed files:
+- `src/main/java/com/msfg/rag/service/AskService.java`
+- `src/main/java/com/msfg/rag/service/audit/RagTraceService.java`
+- `src/test/java/com/msfg/rag/service/AskServiceTest.java`
+- `src/test/java/com/msfg/rag/service/audit/RagTraceServiceTest.java`
+
+Tests run:
+- `./gradlew test --tests com.msfg.rag.service.AskServiceTest --tests com.msfg.rag.service.publicapi.PublicAskServiceTest --tests com.msfg.rag.service.audit.RagTraceServiceTest`
+
+Results:
+- PASS
+
+Commit id:
+- `d7c19e0`
+
+Concerns:
+- None.
 - Commit created: `5dbfde9 Trace public ask decisions`
 
 ---
