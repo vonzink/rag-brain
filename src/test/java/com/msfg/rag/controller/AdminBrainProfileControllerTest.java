@@ -67,6 +67,17 @@ class AdminBrainProfileControllerTest {
     }
 
     @Test
+    void putRejectsMissingRequestBody() {
+        UUID brainId = UUID.randomUUID();
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> controller.put(brainId, null));
+
+        assertEquals("request body is required", ex.getMessage());
+    }
+
+    @Test
     void putDelegatesValidRequest() {
         UUID brainId = UUID.randomUUID();
         BrainProfileRequest req = new BrainProfileRequest(

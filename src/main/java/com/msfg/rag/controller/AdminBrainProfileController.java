@@ -29,6 +29,9 @@ public class AdminBrainProfileController {
 
     @PutMapping
     public BrainProfileDto put(@PathVariable UUID brainId, @RequestBody BrainProfileRequest req) {
+        if (req == null) {
+            throw new IllegalArgumentException("request body is required");
+        }
         validate(req);
         return BrainProfileDto.from(service.update(brainId, req));
     }
