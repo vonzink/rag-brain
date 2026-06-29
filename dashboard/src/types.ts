@@ -1,6 +1,54 @@
 export interface Stats {
-  brain: { companyName: string; slug: string };
+  brain: { id: string; companyName: string; slug: string };
   corpus: { activeDocuments: number; totalDocuments: number; chunks: number };
+}
+
+export interface BrainProfileDto {
+  brainId: string;
+  mode: "PUBLIC_SITE" | "PRIVATE_SITE" | "SECURE_DEPLOYMENT";
+  purpose: string;
+  audience: string;
+  personality: string;
+  tone: string;
+  expertiseLevel: string;
+  answerLength: string;
+  confidenceTarget: number;
+  clarificationPolicy: string;
+  escalationPolicy: string;
+  citationPolicy: string;
+  ctaPolicy: string;
+  disclaimer: string;
+  publicEnabled: boolean;
+  allowedDomains: string[];
+}
+
+export type BrainProfileRequest = Omit<BrainProfileDto, "brainId">;
+
+export interface PublicAskRequest {
+  sessionId: string;
+  message: string;
+  pageRoute: string | null;
+  surface: "PUBLIC" | "INTERNAL" | "SECURE";
+  facts: Record<string, unknown>;
+}
+
+export interface PublicRecommendedPage {
+  label: string;
+  url: string;
+  reason: string;
+}
+
+export interface PublicAskResponse {
+  responseType: "ANSWER" | "CLARIFY" | "NAVIGATE" | "ESCALATE";
+  message: string | null;
+  answer: string | null;
+  clarifyingQuestion: string | null;
+  missingFacts: string[];
+  citations: Citation[];
+  recommendedPages: PublicRecommendedPage[];
+  confidence: number;
+  nextAction: string | null;
+  conversationId: string | null;
 }
 
 export interface DocumentDto {

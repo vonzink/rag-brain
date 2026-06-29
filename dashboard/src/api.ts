@@ -1,4 +1,12 @@
-import { BrainAdminDto, BrainCreateRequest, SyncReport } from "./types";
+import {
+  BrainAdminDto,
+  BrainCreateRequest,
+  BrainProfileDto,
+  BrainProfileRequest,
+  PublicAskRequest,
+  PublicAskResponse,
+  SyncReport,
+} from "./types";
 
 const KEY_STORAGE = "rag-brain-admin-key";
 
@@ -54,3 +62,27 @@ export const brainsApi = {
     api.post<SyncReport>(`/api/ai/admin/brains/${id}/sync?dryRun=${dryRun}`),
   remove: (id: string) => api.del<BrainAdminDto>(`/api/ai/admin/brains/${id}`),
 };
+
+export const profileApi = {
+  get: (brainId: string) => api.get<BrainProfileDto>(`/api/ai/admin/brains/${brainId}/profile`),
+  update: (brainId: string, body: BrainProfileRequest) =>
+    api.put<BrainProfileDto>(`/api/ai/admin/brains/${brainId}/profile`, body),
+  rotatePublicToken: (brainId: string) =>
+    api.post<{ token: string }>(`/api/ai/admin/brains/${brainId}/profile/public-token`, {}),
+};
+
+export async function publicAsk(slug: string, token: string, body: PublicAskRequest) {
+  const headers = new Headers();
+  headers.set("X-Public-Brain-Token", token);
+  headers.set("Content-Type", "application/json");
+  const response = await fetch(`/api/ai/public/${slug}/ask`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(data?.error || `HTTP ${response.status}`);
+  }
+  return response.json() as Promise<PublicAskResponse>;
+}

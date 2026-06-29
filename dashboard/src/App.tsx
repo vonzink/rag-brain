@@ -11,6 +11,7 @@ import SourceLinks from "./screens/SourceLinks";
 import PageGuides from "./screens/PageGuides";
 import TestConsole from "./screens/TestConsole";
 import Audit from "./screens/Audit";
+import Personality from "./screens/Personality";
 
 function KeyGate({ onUnlocked }: { onUnlocked: () => void }) {
   const [key, setKey] = useState("");
@@ -60,10 +61,12 @@ export default function App() {
           <div className="brand">
             <strong>{stats?.brain.companyName ?? "RAG brain"}</strong>
             <span className="muted">slug: {stats?.brain.slug ?? "…"}</span>
+            <span className="muted">brain: {stats?.brain.id?.slice(0, 8) ?? "…"}</span>
           </div>
           <nav className="nav">
             <NavLink to="/corpus">Corpus</NavLink>
             <NavLink to="/brains">Brains</NavLink>
+            <NavLink to="/personality">Personality</NavLink>
             <NavLink to="/settings">Settings</NavLink>
             <NavLink to="/rules">Rules</NavLink>
             <NavLink to="/vocabulary">Vocabulary</NavLink>
@@ -81,12 +84,13 @@ export default function App() {
             <Route path="/corpus" element={<Corpus stats={stats} onCorpusChanged={() =>
               api.get<Stats>("/api/ai/admin/stats").then(setStats).catch(() => undefined)} />} />
             <Route path="/brains" element={<Brains />} />
+            <Route path="/personality" element={<Personality stats={stats} />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/vocabulary" element={<Vocabulary />} />
             <Route path="/source-links" element={<SourceLinks />} />
             <Route path="/page-guides" element={<PageGuides />} />
-            <Route path="/console" element={<TestConsole slug={stats?.brain.slug ?? "mortgage"} />} />
+            <Route path="/console" element={<TestConsole slug={stats?.brain.slug ?? ""} />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="*" element={<Navigate to="/corpus" replace />} />
           </Routes>

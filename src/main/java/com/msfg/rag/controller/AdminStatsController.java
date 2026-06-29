@@ -16,7 +16,7 @@ import java.util.UUID;
 @RequestMapping("/api/ai/admin/stats")
 public class AdminStatsController {
 
-    public record BrainDto(String companyName, String slug) {}
+    public record BrainDto(UUID id, String companyName, String slug) {}
     public record CorpusDto(long activeDocuments, long totalDocuments, long chunks) {}
     public record StatsDto(BrainDto brain, CorpusDto corpus) {}
 
@@ -41,7 +41,7 @@ public class AdminStatsController {
         var pack = packRegistry.bundle(resolved.getId()).pack();
         UUID brainId = resolved.getId();
         return new StatsDto(
-                new BrainDto(pack.companyName(), pack.slug()),
+                new BrainDto(brainId, pack.companyName(), pack.slug()),
                 new CorpusDto(documents.countByBrainIdAndActiveTrue(brainId),
                               documents.countByBrainId(brainId),
                               chunks.countByBrainId(brainId)));

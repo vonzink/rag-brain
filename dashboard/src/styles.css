@@ -216,7 +216,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 input[type="text"],
 input[type="password"],
 input:not([type]),
-select {
+select,
+textarea {
   height: 36px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -228,7 +229,13 @@ select {
   transition: border-color 0.15s;
 }
 
-input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(15,110,86,0.12); }
+textarea {
+  min-height: 88px;
+  resize: vertical;
+  padding: 8px 10px;
+}
+
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(15,110,86,0.12); }
 
 /* Gate (key unlock screen) */
 .gate {
@@ -282,11 +289,19 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px r
 
 .setting-row:last-child { border-bottom: none; }
 .setting-row label { min-width: 220px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
-.setting-row input, .setting-row select { flex: 1; max-width: 280px; }
+.setting-row input, .setting-row select, .setting-row textarea { flex: 1; max-width: 420px; }
 
 /* Ask bar */
 .ask-bar { display: flex; gap: 8px; margin-bottom: 16px; }
 .ask-bar input { flex: 1; }
+.ask-bar .muted { display: flex; align-items: center; white-space: nowrap; }
+.console-textarea {
+  width: 100%;
+  margin-bottom: 16px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
 
 /* Mode toggle */
 .mode-toggle { display: flex; gap: 4px; }
@@ -331,4 +346,30 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px r
   font-size: 12.5px;
   padding: 6px 0;
   border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .content { max-width: none; }
+}
+
+@media (max-width: 720px) {
+  .screen-head,
+  .setting-row,
+  .ask-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .setting-row label,
+  .setting-row input,
+  .setting-row select,
+  .setting-row textarea {
+    max-width: none;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ask-bar .muted { white-space: normal; }
 }

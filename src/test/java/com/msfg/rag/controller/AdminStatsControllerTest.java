@@ -30,6 +30,7 @@ class AdminStatsControllerTest {
                 new AdminStatsController(TestPacks.registry(), resolver, docs, chunks);
         AdminStatsController.StatsDto stats = controller.stats(null);
 
+        assertEquals(TestBrains.DEFAULT_ID, stats.brain().id());
         assertEquals("Mountain State Financial Group", stats.brain().companyName());
         assertEquals("mortgage", stats.brain().slug());
         assertEquals(9L, stats.corpus().activeDocuments());
