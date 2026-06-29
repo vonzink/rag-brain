@@ -21,6 +21,7 @@ class AdminApiKeyFilterTest {
         assertFalse(filter.shouldNotFilter(get("/api/ai/documents")));
         assertFalse(filter.shouldNotFilter(get("/api/ai/admin/settings")));
         assertFalse(filter.shouldNotFilter(get("/api/ai/admin/brains")));
+        assertFalse(filter.shouldNotFilter(get("/api/ai/admin/brains/00000000-0000-0000-0000-000000000001/profile")));
         assertTrue(filter.shouldNotFilter(get("/api/ai/mortgage/ask")));
         assertTrue(filter.shouldNotFilter(get("/api/ai/conversations/abc")));
     }
