@@ -33,6 +33,18 @@ class CorsConfigTest {
                 "dashboard origins must reach the documents API");
         assertTrue(mappings.get("/api/ai/admin/**").getAllowedHeaders()
                 .contains("X-Admin-Api-Key"), "the admin key header must be allowed");
+
+        CorsConfiguration admin = mappings.get("/api/ai/admin/**");
+        assertTrue(admin.getAllowedMethods().contains("PATCH"),
+                "admin source-link/page-guide edits use PATCH");
+        assertTrue(admin.getAllowedMethods().contains("DELETE"),
+                "admin deletes (brains, links, guides) use DELETE");
+
+        CorsConfiguration documents = mappings.get("/api/ai/documents/**");
+        assertTrue(documents.getAllowedMethods().contains("PATCH"),
+                "document metadata edits use PATCH");
+        assertTrue(documents.getAllowedMethods().contains("DELETE"),
+                "document removal uses DELETE");
     }
 
     @Test

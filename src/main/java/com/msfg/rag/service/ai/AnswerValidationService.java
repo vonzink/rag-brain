@@ -25,7 +25,30 @@ public class AnswerValidationService {
         this.registry = registry;
     }
 
+    /**
+     * Full gate: content/compliance checks PLUS the citation-presence requirement.
+     */
     public ValidationResult validate(ModelAnswer answer, boolean evidenceWasSufficient, UUID brainId) {
+        ValidationResult content = validateContent(answer, brainId);
+        if (!content.valid()) {
+            return content;
+        }
+
+        if (evidenceWasSufficient
+                && (answer.citations() == null || answer.citations().isEmpty())) {
+            return ValidationResult.fail("Answer is missing citations");
+        }
+
+        return ValidationResult.pass();
+    }
+
+    /**
+     * Content/compliance gate on the model's answer text only (empty answer,
+     * prohibited phrases, unquoted "you are eligible"). This MUST be run on the
+     * model's raw output before any post-processing (e.g. citation backfill) so
+     * that massaging the response can never mask a non-compliant answer.
+     */
+    public ValidationResult validateContent(ModelAnswer answer, UUID brainId) {
         if (answer == null || answer.answer() == null || answer.answer().isBlank()) {
             return ValidationResult.fail("Model returned an empty answer");
         }
@@ -44,11 +67,6 @@ public class AnswerValidationService {
 
         if (lower.contains(eligiblePhrase) && !isQuoted(answer.answer(), eligiblePhrase)) {
             return ValidationResult.fail("\"You are eligible\" used outside a direct guideline quote");
-        }
-
-        if (evidenceWasSufficient
-                && (answer.citations() == null || answer.citations().isEmpty())) {
-            return ValidationResult.fail("Answer is missing citations");
         }
 
         return ValidationResult.pass();

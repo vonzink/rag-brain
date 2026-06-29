@@ -46,15 +46,18 @@ public class CorsConfig implements WebMvcConfigurer {
                 .allowedHeaders("Content-Type", "X-Session-Id")
                 .maxAge(3600);
 
+        // PATCH is used to edit source links and page guides; DELETE removes
+        // brains, source links, and page guides.
         registry.addMapping("/api/ai/admin/**")
                 .allowedOrigins(allowedOrigins)
-                .allowedMethods("GET", "PUT", "POST", "DELETE", "OPTIONS")
+                .allowedMethods("GET", "PUT", "POST", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("Content-Type", "X-Admin-Api-Key")
                 .maxAge(3600);
 
+        // PATCH edits document metadata; DELETE removes a document and its chunks.
         registry.addMapping("/api/ai/documents/**")
                 .allowedOrigins(allowedOrigins)
-                .allowedMethods("GET", "POST", "OPTIONS")
+                .allowedMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("Content-Type", "X-Admin-Api-Key")
                 .maxAge(3600);
     }

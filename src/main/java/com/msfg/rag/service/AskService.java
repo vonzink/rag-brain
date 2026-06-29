@@ -202,7 +202,18 @@ public class AskService {
                     "model escalated without citations", rewrittenQuestion, intent, plan, sideEvidence, visibility);
         }
 
-        // 4b. Salvage grounded answers that omit citations. The answer model
+        // 4b. Compliance content gate on the model's RAW answer, BEFORE any
+        //     citation backfill. Running this first means post-processing can
+        //     never mask a prohibited-phrase / non-compliant answer behind
+        //     attached sources.
+        var contentValidation = answerValidationService.validateContent(modelAnswer, brainId);
+        if (!contentValidation.valid()) {
+            log.warn("Answer rejected by content validator: {}", contentValidation.failureReason());
+            return refuse(conversation, request, brainId, retrieval, canned.escalation(), prompt,
+                    contentValidation.failureReason(), rewrittenQuestion, intent, plan, sideEvidence, visibility);
+        }
+
+        // 4c. Salvage grounded answers that omit citations. The answer model
         //     sometimes returns a correct, grounded answer with no citations
         //     array; attach the approved source chunks rather than discard the
         //     answer and escalate. We only reach here when retrieval evidence
@@ -214,7 +225,8 @@ public class AskService {
         }
         modelAnswer = ensureCitations(modelAnswer, retrieval.chunks());
 
-        // 5. Compliance validation — failed answers are never shown.
+        // 5. Final compliance backstop (incl. citation presence) — failed answers
+        //     are never shown.
         var validation = answerValidationService.validate(modelAnswer, true, brainId);
         if (!validation.valid()) {
             log.warn("Answer rejected by validator: {}", validation.failureReason());

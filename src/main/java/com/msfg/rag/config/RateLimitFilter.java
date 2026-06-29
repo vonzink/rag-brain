@@ -21,10 +21,17 @@ import java.util.regex.Pattern;
 
 /**
  * Per-client token-bucket rate limiting on the public ask endpoint.
- * Keyed by client IP (X-Forwarded-For aware for when Nginx fronts the app).
  *
- * In-memory buckets are fine for a single instance; move to a Redis-backed
- * bucket4j store if we scale horizontally.
+ * <p>Client identity comes from {@code getRemoteAddr()} by default. The
+ * {@code X-Forwarded-For} header is only honoured when
+ * {@code msfg.rag.rate-limit.trust-forwarded-for=true}, because a direct caller
+ * can set that header to any value and trivially defeat IP-based limiting by
+ * rotating it. When enabled, the real client is read from the entry appended by
+ * the trusted proxy layer — {@code trusted-proxy-count} entries from the right —
+ * not the client-controlled leftmost value.
+ *
+ * <p>In-memory buckets are fine for a single instance; move to a Redis-backed
+ * bucket4j store if we scale horizontally (limits would otherwise be per-pod).
  */
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
@@ -36,13 +43,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
     private final int requestsPerMinute;
     private final Set<String> askPaths;
+    private final boolean trustForwardedFor;
+    private final int trustedProxyCount;
 
     public RateLimitFilter(RagProperties properties,
-                           @Value("${brain.slug:generic}") String slug) {
+                           @Value("${brain.slug:generic}") String slug,
+                           @Value("${msfg.rag.rate-limit.trust-forwarded-for:false}") boolean trustForwardedFor,
+                           @Value("${msfg.rag.rate-limit.trusted-proxy-count:1}") int trustedProxyCount) {
         this.requestsPerMinute = properties.rateLimit().requestsPerMinute();
         this.askPaths = Set.of(
                 "/api/ai/" + slug + "/ask",
                 "/api/ai/public/" + slug + "/ask");
+        this.trustForwardedFor = trustForwardedFor;
+        this.trustedProxyCount = Math.max(1, trustedProxyCount);
     }
 
     @Override
@@ -86,11 +99,25 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
     }
 
-    private String clientKey(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].strip();
+    String clientKey(HttpServletRequest request) {
+        if (!trustForwardedFor) {
+            return request.getRemoteAddr();
         }
-        return request.getRemoteAddr();
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded == null || forwarded.isBlank()) {
+            return request.getRemoteAddr();
+        }
+        String[] parts = forwarded.split(",");
+        // The client controls the leftmost entries; only the rightmost entries are
+        // appended by trusted proxies. The real client is the entry the outermost
+        // trusted proxy observed: count trustedProxyCount back from the end.
+        int idx = parts.length - trustedProxyCount;
+        if (idx < 0) {
+            // Fewer hops than configured — the header can't be trusted for this
+            // request, so fall back to the direct peer rather than a spoofable entry.
+            return request.getRemoteAddr();
+        }
+        String ip = parts[idx].strip();
+        return ip.isEmpty() ? request.getRemoteAddr() : ip;
     }
 }

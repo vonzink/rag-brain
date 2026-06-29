@@ -119,6 +119,13 @@ msfg:
       allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
     rate-limit:
       requests-per-minute: 10   # per session/IP on the public ask endpoint
+      # X-Forwarded-For is spoofable by direct callers, so it is IGNORED unless
+      # the app sits strictly behind a trusted proxy. Set trust-forwarded-for=true
+      # only when ALL traffic arrives via your proxy layer, and set
+      # trusted-proxy-count to the number of proxies that append to the header
+      # (e.g. 1 for Nginx only, 2 for ALB+Nginx).
+      trust-forwarded-for: ${RATE_LIMIT_TRUST_FORWARDED_FOR:false}
+      trusted-proxy-count: ${RATE_LIMIT_TRUSTED_PROXY_COUNT:1}
 
 logging:
   level:
