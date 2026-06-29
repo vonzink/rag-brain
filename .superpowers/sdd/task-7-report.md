@@ -34,7 +34,7 @@ Verification commands/results:
   - PASS
 
 Commit id:
-- `63e9fb1`
+- `aa909d7`
 
 Concerns:
 - The public test mode intentionally does not let the dashboard fake a different `Origin` header. To test a different allowed domain, the dashboard must actually be loaded from that origin or the allowed-domain list must include the dashboard's real browser origin.
