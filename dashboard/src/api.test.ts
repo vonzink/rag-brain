@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, adminKey, AuthError, brainsApi } from "./api";
+import { api, adminKey, AuthError, brainsApi, legacyAskPath } from "./api";
 
 const store = new Map<string, string>();
 
@@ -12,7 +12,10 @@ beforeEach(() => {
   store.clear();
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 function fetchReturning(status: number, body: unknown) {
   return vi.fn(async () => new Response(JSON.stringify(body), { status }));
@@ -57,5 +60,11 @@ describe("api client", () => {
     const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(call[0]).toBe("/api/ai/admin/brains/abc/activate");
     expect((call[1].method ?? "GET")).toBe("POST");
+  });
+
+  it("builds legacy ask paths from the configured route slug and target brain", () => {
+    vi.stubEnv("VITE_LEGACY_ASK_SLUG", "mortgage");
+
+    expect(legacyAskPath("msfg")).toBe("/api/ai/mortgage/ask?brain=msfg");
   });
 });

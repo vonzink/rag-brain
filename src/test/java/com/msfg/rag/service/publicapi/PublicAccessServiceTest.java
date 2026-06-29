@@ -5,6 +5,8 @@ import com.msfg.rag.domain.BrainProfile;
 import com.msfg.rag.repository.BrainProfileRepository;
 import com.msfg.rag.service.profile.BrainProfileService;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -46,8 +48,21 @@ class PublicAccessServiceTest {
         UUID brainId = UUID.randomUUID();
         when(profiles.getOrCreate(brainId)).thenReturn(profile(brainId, "pub_test"));
 
-        assertThrows(IllegalArgumentException.class,
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.validate(brainId, "wrong", "https://example.com"));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
+    }
+
+    @Test
+    void validateRejectsMissingTokenAsUnauthorized() {
+        UUID brainId = UUID.randomUUID();
+        when(profiles.getOrCreate(brainId)).thenReturn(profile(brainId, "pub_test"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.validate(brainId, " ", "https://example.com"));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
     }
 
     @Test

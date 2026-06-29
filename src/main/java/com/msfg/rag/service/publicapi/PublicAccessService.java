@@ -4,8 +4,10 @@ import com.msfg.rag.domain.BrainMode;
 import com.msfg.rag.domain.BrainProfile;
 import com.msfg.rag.repository.BrainProfileRepository;
 import com.msfg.rag.service.profile.BrainProfileService;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -34,11 +36,11 @@ public class PublicAccessService {
             throw new IllegalArgumentException("Public access is disabled for this brain");
         }
         if (token == null || token.isBlank() || profile.getPublicTokenHash() == null) {
-            throw new IllegalArgumentException("Public token is required");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Public token is required");
         }
         if (!MessageDigest.isEqual(hashToken(token).getBytes(StandardCharsets.UTF_8),
                 profile.getPublicTokenHash().getBytes(StandardCharsets.UTF_8))) {
-            throw new IllegalArgumentException("Public token rejected");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Public token rejected");
         }
         String host = originHost(origin);
         if (!profile.getAllowedDomains().isEmpty() && !profile.getAllowedDomains().contains(host)) {

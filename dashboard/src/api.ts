@@ -9,7 +9,7 @@ import {
 } from "./types";
 
 const KEY_STORAGE = "rag-brain-admin-key";
-export const LEGACY_ASK_ROUTE_BASE = "/api/ai/generic";
+const DEFAULT_LEGACY_ASK_SLUG = "generic";
 
 export class AuthError extends Error {
   constructor() {
@@ -63,7 +63,8 @@ export const api = {
 };
 
 export function legacyAskPath(slug: string) {
-  return `${LEGACY_ASK_ROUTE_BASE}/ask?brain=${encodeURIComponent(slug)}`;
+  const routeSlug = import.meta.env.VITE_LEGACY_ASK_SLUG || DEFAULT_LEGACY_ASK_SLUG;
+  return `/api/ai/${encodeURIComponent(routeSlug)}/ask?brain=${encodeURIComponent(slug)}`;
 }
 
 export const brainsApi = {
