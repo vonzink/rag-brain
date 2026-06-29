@@ -17,13 +17,15 @@ class RateLimitFilterTest {
             new RagProperties.RateLimit(10));
 
     @Test
-    void limitsTheSlugAskPathOnly() {
+    void limitsTheConfiguredAskPathAndAnyPublicAskSlug() {
         RateLimitFilter filter = new RateLimitFilter(props, "mortgage");
 
         assertFalse(filter.shouldNotFilter(get("/api/ai/mortgage/ask")),
                 "the ask path must be rate limited");
-        assertFalse(filter.shouldNotFilter(get("/api/ai/public/mortgage/ask")),
-                "the public ask path must be rate limited");
+        assertFalse(filter.shouldNotFilter(get("/api/ai/public/generic/ask")),
+                "generic public ask must be rate limited");
+        assertFalse(filter.shouldNotFilter(get("/api/ai/public/other-brain/ask")),
+                "other-brain public ask must be rate limited");
         assertTrue(filter.shouldNotFilter(get("/api/ai/documents")),
                 "admin endpoints are not rate limited by this filter");
     }

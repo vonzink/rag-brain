@@ -52,6 +52,21 @@ Result: `BUILD SUCCESSFUL`
 
 ---
 
+## Task 4 Re-Review Fix Report: Public Ask Rate-Limit Pattern
+
+### Finding addressed
+- Updated `RateLimitFilter` so `/api/ai/public/{slug}/ask` is rate-limited for any slug, not just the configured `brain.slug`.
+- Expanded `RateLimitFilterTest` to prove both `/api/ai/public/generic/ask` and `/api/ai/public/other-brain/ask` are gated by the filter.
+
+### Verification run
+```bash
+./gradlew test --tests com.msfg.rag.config.RateLimitFilterTest
+```
+
+Result: `BUILD SUCCESSFUL`
+
+---
+
 ## Task 4 Re-Review Fix Report: Legacy Ask Auth And Admin Retrieval
 
 ### Findings addressed

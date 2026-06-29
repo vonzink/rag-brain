@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * Per-client token-bucket rate limiting on the public ask endpoint.
@@ -30,6 +31,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final int MAX_TRACKED_CLIENTS = 100_000;
     private static final UrlPathHelper PATH_HELPER = new UrlPathHelper();
+    private static final Pattern PUBLIC_ASK_PATH = Pattern.compile("^/api/ai/public/[^/]+/ask$");
 
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
     private final int requestsPerMinute;
@@ -51,7 +53,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return true;
         }
         // Decoded path — percent-encoding must not bypass rate limiting.
-        return !askPaths.contains(PATH_HELPER.getPathWithinApplication(request));
+        String path = PATH_HELPER.getPathWithinApplication(request);
+        return !askPaths.contains(path) && !PUBLIC_ASK_PATH.matcher(path).matches();
     }
 
     @Override
