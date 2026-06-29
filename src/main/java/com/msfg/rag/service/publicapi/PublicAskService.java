@@ -64,7 +64,26 @@ public class PublicAskService {
     }
 
     private static AskRequest toAskRequest(PublicAskRequest req, String surface) {
-        return new AskRequest(req.conversationId(), req.sessionId(), req.message(), null, null, req.pageRoute(), surface);
+        return new AskRequest(req.conversationId(), req.sessionId(), req.message(), null, null,
+                req.pageRoute(), surface, stringFacts(req.facts()));
+    }
+
+    /**
+     * Flattens the public request's {@code Map<String, Object>} facts to string
+     * values so they can be threaded into the answer prompt. AskService applies
+     * the trimming/length/entry caps.
+     */
+    private static Map<String, String> stringFacts(Map<String, Object> facts) {
+        if (facts == null || facts.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> out = new java.util.LinkedHashMap<>();
+        facts.forEach((k, v) -> {
+            if (k != null && v != null) {
+                out.put(k, String.valueOf(v));
+            }
+        });
+        return out;
     }
 
     private static PublicAskResponse mapAnswer(String responseType, AskResponse answer) {

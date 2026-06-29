@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -142,6 +143,15 @@ public class AskService {
                 intent, request.pageRoute(), request.surface());
         String rewrittenQuestion = vocabularyService.previewExpansion(brainId, request.question());
 
+        // 0b. Calculation guardrail: questions that ask the assistant to produce a
+        //     specific number must not be answered from retrieved prose (numeric
+        //     hallucination risk). Escalate to a human before any LLM spend.
+        if (intentRouterService.isCalculationRequest(request.question())) {
+            return refuse(conversation, request, brainId, RetrievalResult.empty(),
+                    canned.escalation(), null, "calculation request", rewrittenQuestion,
+                    intent, plan, PlannedEvidence.empty(), visibility);
+        }
+
         // 1. Retrieve approved source context. A transient embedding/provider
         //    error becomes a graceful escalation, not a 500. A genuine
         //    misconfiguration ("not configured") still surfaces as 503.
@@ -172,7 +182,12 @@ public class AskService {
         //    answer provider (and its fallback) fail, return a compliance
         //    escalation instead of surfacing a 500 to the visitor. A genuine
         //    misconfiguration ("not configured") still surfaces as 503.
-        String prompt = promptBuilderService.build(request.question(), retrieval.chunks(), brainId, sideEvidence);
+        // Tailor the prompt with any user-provided facts (e.g. collected during a
+        // public clarification turn) so the answer reflects the visitor's stated
+        // context. Facts shape the prompt only; retrieval still uses the raw
+        // question, and the model is told these are context, not source truth.
+        String promptQuestion = appendFacts(request.question(), request.facts());
+        String prompt = promptBuilderService.build(promptQuestion, retrieval.chunks(), brainId, sideEvidence);
         ModelRouterService.RoutedResponse routed;
         try {
             routed = modelRouterService.generate(AiRequest.forGuidelineAnswer(prompt), brainId);
@@ -434,6 +449,56 @@ public class AskService {
 
     private static String normalizeName(String value) {
         return value.strip().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * Appends user-provided facts to the prompt question as labelled context.
+     * Returns the question unchanged when there are no usable facts, so the
+     * default (no-facts) path is byte-for-byte identical to before.
+     */
+    static String appendFacts(String question, Map<String, String> facts) {
+        Map<String, String> safe = sanitizeFacts(facts);
+        if (safe.isEmpty()) {
+            return question;
+        }
+        StringBuilder sb = new StringBuilder(question);
+        sb.append("\n\nDetails the user already provided (treat as the user's stated"
+                + " context, not as source-of-truth facts; still ground every claim in"
+                + " the approved sources above):");
+        safe.forEach((k, v) -> sb.append("\n- ").append(k).append(": ").append(v));
+        return sb.toString();
+    }
+
+    /**
+     * Trims, de-blanks, length-caps (key 60 / value 200 chars), strips newlines,
+     * and limits to 10 entries so a hostile or oversized facts map cannot bloat
+     * or restructure the prompt.
+     */
+    private static Map<String, String> sanitizeFacts(Map<String, String> facts) {
+        if (facts == null || facts.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : facts.entrySet()) {
+            if (out.size() >= 10) {
+                break;
+            }
+            String key = e.getKey() == null ? null : e.getKey().strip();
+            String value = e.getValue() == null ? null : e.getValue().strip();
+            if (key == null || key.isEmpty() || value == null || value.isEmpty()) {
+                continue;
+            }
+            key = key.replaceAll("[\\r\\n]+", " ");
+            value = value.replaceAll("[\\r\\n]+", " ");
+            if (key.length() > 60) {
+                key = key.substring(0, 60);
+            }
+            if (value.length() > 200) {
+                value = value.substring(0, 200);
+            }
+            out.put(key, value);
+        }
+        return out;
     }
 
     private static ModelAnswer withCitations(ModelAnswer answer, List<CitationDto> citations) {

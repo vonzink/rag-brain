@@ -3,8 +3,8 @@ package com.msfg.rag.service.ai;
 import com.msfg.rag.domain.Surface;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Deterministic, code-driven intent router (Phase 5). Computes a heuristic
@@ -21,12 +21,11 @@ import java.util.Locale;
  * conservative heuristic, NOT the final taxonomy — refine in a later phase once
  * intent is actually consumed.
  *
- * <p><b>Broad substring cues (intentional):</b> keywords like {@code rate},
- * {@code source}, and {@code link} are deliberately broad — they match
- * substrings such as "sepa<b>rate</b>", "re<b>source</b>ful", and
- * "<b>link</b>age". This is acceptable for Phase 5 because nothing consumes
- * intent yet; tighten to word-boundary or phrase matches when Phase 6 actually
- * reads intent routing results.
+ * <p><b>Word-boundary cues:</b> single-word keywords match on a leading word
+ * boundary so {@code rate} no longer fires inside "sepa<b>rate</b>" or
+ * "ove<b>rrate</b>"; multi-word cues ("how much") match as phrases. This keeps
+ * the analytics intent honest now that {@link AskService} consumes a (separate,
+ * stricter) calculation check via {@link #isCalculationRequest(String)}.
  *
  * <p><b>Surface parsing divergence (intentional):</b> {@code route()} parses
  * surface as {@code Surface.valueOf(surface.strip().toUpperCase(Locale.US))}
@@ -57,15 +56,34 @@ import java.util.Locale;
 @Service
 public class IntentRouterService {
 
-    /** Numeric / calculation cues (matched case-insensitively, substring). */
-    private static final List<String> CALCULATION_CUES = List.of(
-            "calculate", "payment", "how much", "monthly",
-            "dti", "ltv", "amortiz", "rate", "%");
+    /**
+     * Numeric / calculation cues for the analytics intent. Single words match on
+     * a leading word boundary; "how much" is a phrase; "%" is a literal.
+     */
+    private static final Pattern CALCULATION_CUES = Pattern.compile(
+            "\\b(?:calculate|payment|monthly|dti|ltv|amortiz|rate)|how much|%",
+            Pattern.CASE_INSENSITIVE);
 
-    /** Official / external-source cues (matched case-insensitively, substring). */
-    private static final List<String> EXTERNAL_REFERENCE_CUES = List.of(
-            "official", "source", "link", "where can i find",
-            "guideline number", "handbook");
+    /** Official / external-source cues (leading word boundary + phrases). */
+    private static final Pattern EXTERNAL_REFERENCE_CUES = Pattern.compile(
+            "\\b(?:official|source|link|handbook)|where can i find|guideline number",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Stricter predicate for the answer guard: does the question ask the
+     * assistant to PRODUCE a number (a personalized/explicit computation) rather
+     * than explain a concept? Deliberately narrow so definitional questions like
+     * "what is DTI?" or "what is an interest rate?" still answer normally, while
+     * "calculate my payment" / "what's my monthly payment" / "how much can I
+     * borrow" escalate instead of risking a hallucinated figure.
+     */
+    private static final Pattern CALCULATION_REQUEST = Pattern.compile(
+            "\\b(?:calculate|compute)\\b"
+                    + "|how much"
+                    + "|monthly payment"
+                    + "|\\bmy\\b[^.?!]{0,40}\\b(?:payment|dti|ltv|debt[- ]to[- ]income"
+                    + "|loan[- ]to[- ]value|interest rate|mortgage insurance|credit score)\\b",
+            Pattern.CASE_INSENSITIVE);
 
     /**
      * Computes the heuristic intent. Validates {@code surface} up front so a bad
@@ -98,12 +116,12 @@ public class IntentRouterService {
         String normalized = question.toLowerCase(Locale.US).strip();
 
         // 4. Calculation cues (checked before external-reference by design).
-        if (containsAny(normalized, CALCULATION_CUES)) {
+        if (CALCULATION_CUES.matcher(normalized).find()) {
             return Intent.CALCULATION;
         }
 
         // 5. External-reference cues.
-        if (containsAny(normalized, EXTERNAL_REFERENCE_CUES)) {
+        if (EXTERNAL_REFERENCE_CUES.matcher(normalized).find()) {
             return Intent.EXTERNAL_REFERENCE;
         }
 
@@ -111,12 +129,15 @@ public class IntentRouterService {
         return Intent.GUIDELINE_QUESTION;
     }
 
-    private static boolean containsAny(String haystack, List<String> needles) {
-        for (String needle : needles) {
-            if (haystack.contains(needle)) {
-                return true;
-            }
+    /**
+     * True when the question asks the assistant to compute or report a specific
+     * number, which the model must not generate from retrieved prose. Used by the
+     * answer pipeline to escalate to a human instead of guessing figures.
+     */
+    public boolean isCalculationRequest(String question) {
+        if (question == null || question.isBlank()) {
+            return false;
         }
-        return false;
+        return CALCULATION_REQUEST.matcher(question.toLowerCase(Locale.US).strip()).find();
     }
 }

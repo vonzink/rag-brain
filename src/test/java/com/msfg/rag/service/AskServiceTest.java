@@ -58,6 +58,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -671,5 +672,109 @@ class AskServiceTest {
 
         // The model cited its own sources; do not overwrite them with the chunks.
         assertEquals(modelCitations, result.citations());
+    }
+
+    // ---- #11 calculation guardrail -------------------------------------
+
+    @Test
+    void calculationRequestEscalatesBeforeRetrievalOrModel() {
+        QuestionClassifierService classifier = mock(QuestionClassifierService.class);
+        when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
+
+        RetrievalService retrieval = mock(RetrievalService.class);
+        PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
+        when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
+        ModelRouterService router = mock(ModelRouterService.class);
+        AuditLogService audit = mock(AuditLogService.class);
+
+        ConversationRepository conversations = mock(ConversationRepository.class);
+        when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        MessageRepository messages = mock(MessageRepository.class);
+        when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
+        when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        IntentRouterService intentRouter = mock(IntentRouterService.class);
+        when(intentRouter.route(anyString(), any(), any())).thenReturn(Intent.CALCULATION);
+        when(intentRouter.isCalculationRequest(anyString())).thenReturn(true);
+        RetrievalPlannerServiceMocks plannerMocks = plannerMocks();
+        VocabularyService vocabulary = mock(VocabularyService.class);
+        when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
+        RagTraceService trace = traceService();
+
+        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+                new AnswerValidationService(TestPacks.registry()), audit,
+                conversations, messages, sources, new ObjectMapper(),
+                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+
+        AskResponse response = service.ask(
+                new AskRequest(null, "session-1", "Calculate my monthly payment", null, null),
+                TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
+
+        assertTrue(response.humanEscalationRequired(), "a calculation request must escalate");
+        assertEquals(TestPacks.msfg().guardrails().cannedAnswers().escalation(), response.answer());
+        // The guard must short-circuit before any embedding or LLM spend.
+        verify(retrieval, never()).retrieve(anyString(), any(), any());
+        verify(router, never()).generate(any(), any());
+    }
+
+    // ---- #9 clarification facts in the prompt --------------------------
+
+    @Test
+    void clarificationFactsAreAppendedToThePromptQuestion() {
+        QuestionClassifierService classifier = mock(QuestionClassifierService.class);
+        when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
+
+        RetrievalService retrieval = mock(RetrievalService.class);
+        List<RetrievedChunk> chunks = List.of(
+                chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1)));
+        when(retrieval.retrieve(anyString(), any(), any())).thenReturn(new RetrievalResult(chunks, 1.0, true));
+
+        PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
+        when(promptBuilder.build(anyString(), anyList(), any(), any())).thenReturn("PROMPT");
+        when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
+
+        ModelRouterService router = mock(ModelRouterService.class);
+        String groundedJson = """
+                {"answer":"PMI is mortgage insurance.",
+                 "citations":[],
+                 "confidence":0.85,
+                 "human_escalation_required":false,
+                 "disclaimer":"d"}""";
+        AiResponse aiResponse = new AiResponse(groundedJson, "anthropic", "claude", 10, 10);
+        when(router.generate(any(), any()))
+                .thenReturn(new ModelRouterService.RoutedResponse(aiResponse, false));
+
+        AuditLogService audit = mock(AuditLogService.class);
+        ConversationRepository conversations = mock(ConversationRepository.class);
+        when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        MessageRepository messages = mock(MessageRepository.class);
+        when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
+        when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        IntentRouterService intentRouter = mock(IntentRouterService.class);
+        when(intentRouter.route(anyString(), any(), any())).thenReturn(Intent.GUIDELINE_QUESTION);
+        RetrievalPlannerServiceMocks plannerMocks = plannerMocks();
+        VocabularyService vocabulary = mock(VocabularyService.class);
+        when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
+        RagTraceService trace = traceService();
+
+        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+                new AnswerValidationService(TestPacks.registry()), audit,
+                conversations, messages, sources, new ObjectMapper(),
+                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+
+        AskRequest request = new AskRequest(null, "session-1", "What is PMI?", null, null,
+                null, null, Map.of("loan_type", "FHA"));
+        service.ask(request, TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
+
+        ArgumentCaptor<String> promptQuestion = ArgumentCaptor.forClass(String.class);
+        verify(promptBuilder).build(promptQuestion.capture(), anyList(), any(), any());
+        String captured = promptQuestion.getValue();
+        assertTrue(captured.startsWith("What is PMI?"), "raw question must be preserved");
+        assertTrue(captured.contains("loan_type: FHA"), "facts must be threaded into the prompt question");
+        // Retrieval must still use the raw question, not the facts-augmented one.
+        verify(retrieval).retrieve(eq("What is PMI?"), any(), any());
     }
 }
