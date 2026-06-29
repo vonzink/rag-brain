@@ -92,6 +92,8 @@ curl -X POST http://localhost:8091/api/ai/generic/ask \
 
 The response includes `answer`, `citations`, confidence/escalation flags, optional `recommendedPage`, `links`, `nextAction`, and `traceId`. Query and ingestion flows require `OPENAI_API_KEY` because embeddings are generated with OpenAI by default. The API and dashboard can still boot without AI keys so admin setup is possible first.
 
+The dashboard Test Console uses `VITE_LEGACY_ASK_SLUG` for its full ask route and sends the selected brain as `?brain=<slug>`. New deployments can leave it as `generic`; set it only when an existing website still calls a legacy route slug.
+
 ## Public Website Assistant
 
 Public website calls use a per-brain public token, not `ADMIN_API_KEY`.

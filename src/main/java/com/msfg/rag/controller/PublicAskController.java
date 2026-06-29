@@ -24,8 +24,8 @@ public class PublicAskController {
 
     @PostMapping("/ask")
     public ResponseEntity<PublicAskResponse> ask(@PathVariable String slug,
-                                                 @RequestHeader("X-Public-Brain-Token") String token,
-                                                 @RequestHeader("Origin") String origin,
+                                                 @RequestHeader(value = "X-Public-Brain-Token", required = false) String token,
+                                                 @RequestHeader(value = "Origin", required = false) String origin,
                                                  @Valid @RequestBody PublicAskRequest request) {
         return ResponseEntity.ok(service.ask(slug, token, origin, request));
     }
