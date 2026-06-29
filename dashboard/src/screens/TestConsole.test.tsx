@@ -8,10 +8,11 @@ vi.mock("../api", () => ({
     post: vi.fn(),
     get: vi.fn(),
   },
+  legacyAskPath: (slug: string) => `/api/ai/generic/ask?brain=${encodeURIComponent(slug)}`,
   publicAsk: vi.fn(),
 }));
 
-import { publicAsk } from "../api";
+import { api, publicAsk } from "../api";
 
 describe("TestConsole", () => {
   beforeEach(() => {
@@ -68,5 +69,36 @@ describe("TestConsole", () => {
     await userEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     expect(await screen.findByText("origin blocked")).toBeTruthy();
+  });
+
+  it("routes full ask through the configured legacy endpoint with the target brain query", async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      conversationId: "conv-1",
+      answer: "PMI is mortgage insurance.",
+      citations: [],
+      confidence: 0.83,
+      humanEscalationRequired: false,
+      disclaimer: "General guidance only.",
+      recommendedPage: null,
+      links: [],
+      nextAction: null,
+      traceId: "trace-1",
+    });
+
+    render(<TestConsole slug="msfg" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        "/api/ai/generic/ask?brain=msfg",
+        expect.objectContaining({
+          pageRoute: null,
+          sessionId: "dashboard-session-123",
+          question: "What is PMI?",
+          surface: "PUBLIC",
+        }),
+      );
+    });
   });
 });

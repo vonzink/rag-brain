@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { api, publicAsk } from "../api";
+import { api, legacyAskPath, publicAsk } from "../api";
 import { AskResponse, PublicAskResponse, RetrievalResult } from "../types";
 import { ErrorNote, Pill } from "../components";
 
@@ -42,7 +42,7 @@ export default function TestConsole({ slug }: { slug: string }) {
         throw new Error("Active brain slug is unavailable");
       }
       if (mode === "ask") {
-        setAnswer(await api.post<AskResponse>(`/api/ai/${slug}/ask`, {
+        setAnswer(await api.post<AskResponse>(legacyAskPath(slug), {
           sessionId,
           question,
           pageRoute: pageRoute.trim() || null,

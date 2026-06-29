@@ -20,8 +20,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class AskControllerTest {
 
@@ -60,6 +60,9 @@ class AskControllerTest {
                 controller.ask(request, null, null));
 
         assertEquals(401, ex.getStatusCode().value());
+        assertEquals("Legacy /api/ai/{slug}/ask requires X-Admin-Api-Key; public callers must use /api/ai/public/{slug}/ask",
+                ex.getReason());
         verifyNoInteractions(askService);
+        verifyNoInteractions(brainResolver);
     }
 }

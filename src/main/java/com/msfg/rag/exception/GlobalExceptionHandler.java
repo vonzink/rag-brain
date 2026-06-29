@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -46,6 +47,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleUploadTooLarge(MaxUploadSizeExceededException e) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(Map.of("error", "File exceeds the maximum upload size"));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, String>> handleResponseStatus(ResponseStatusException e) {
+        String message = e.getReason() == null ? e.getStatusCode().toString() : e.getReason();
+        return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", message));
     }
 
     @ExceptionHandler(Exception.class)

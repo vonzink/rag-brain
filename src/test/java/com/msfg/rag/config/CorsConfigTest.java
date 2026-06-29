@@ -19,6 +19,8 @@ class CorsConfigTest {
                 "the default slug keeps the existing mapping");
         assertTrue(mappings.containsKey("/api/ai/conversations/**"),
                 "the conversation endpoints stay exposed");
+        assertTrue(mappings.get("/api/ai/mortgage/**").getAllowedHeaders()
+                .contains("X-Admin-Api-Key"), "legacy ask route must allow the admin key header");
     }
 
     @Test

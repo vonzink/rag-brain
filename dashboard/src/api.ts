@@ -9,6 +9,7 @@ import {
 } from "./types";
 
 const KEY_STORAGE = "rag-brain-admin-key";
+export const LEGACY_ASK_ROUTE_BASE = "/api/ai/generic";
 
 export class AuthError extends Error {
   constructor() {
@@ -60,6 +61,10 @@ export const api = {
   upload: <T>(path: string, form: FormData) =>
     request<T>(path, { method: "POST", body: form }),
 };
+
+export function legacyAskPath(slug: string) {
+  return `${LEGACY_ASK_ROUTE_BASE}/ask?brain=${encodeURIComponent(slug)}`;
+}
 
 export const brainsApi = {
   list: () => api.get<BrainAdminDto[]>("/api/ai/admin/brains"),

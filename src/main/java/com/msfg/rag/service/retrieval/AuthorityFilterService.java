@@ -12,11 +12,10 @@ import java.util.List;
  * Tiers and orders the collected side-evidence by trust authority (spec §6.4,
  * §7.6). Pure {@code @Service} — no injected collaborators.
  *
- * <p><b>Phase 7 scope (INERT seam):</b> this only re-orders the side-evidence
- * {@link RetrievalPlannerService#collect} produces, so Phase 8 can emit it
- * trust-first. It does NOT touch the corpus retrieval, the reranker, the
- * boot-locked prompt, {@code AskResponse}, or {@code ModelAnswer}. The ordered
- * {@link PlannedEvidence} remains logged-only until Phase 8 emits it.
+ * <p>This only re-orders the side-evidence
+ * {@link RetrievalPlannerService#collect} produces so downstream prompt assembly,
+ * response shaping, and trace output can present it trust-first. It still does
+ * NOT touch the corpus retrieval or reranker path that grounds the answer body.
  */
 @Service
 public class AuthorityFilterService {
@@ -41,11 +40,8 @@ public class AuthorityFilterService {
      * {@code INVESTOR_OVERLAY → SECONDARY_EXTERNAL} (approved supporting overlay);
      * {@code EDUCATIONAL → BACKGROUND} (borrower-facing context).
      *
-     * <p><b>Defined for completeness / Phase-8 use; NOT applied to corpus
-     * reranking in Phase 7.</b> Corpus authority-rerank is a deferred opt-in
-     * (the {@code authority.mode} hard-sort/boost knob, spec §7.6). Phase 7 wires
-     * only {@link #tierOf(LinkAuthority)} into {@link #order}; nothing calls this
-     * overload against the corpus path yet.
+     * <p>Defined for completeness; the current corpus path still uses its existing
+     * retrieval/rerank flow rather than applying this authority tiering directly.
      */
     public AuthorityTier tierOf(SourceType sourceType) {
         return switch (sourceType) {

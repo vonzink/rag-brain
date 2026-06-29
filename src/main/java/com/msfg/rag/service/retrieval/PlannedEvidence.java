@@ -11,10 +11,9 @@ import java.util.List;
  * chunks are NOT merged in here, so the corpus path and the prompt/sufficiency
  * dependencies on {@link RetrievalResult} stay unchanged.
  *
- * <p><b>Phase 6 scope:</b> this is collected on the proceed path and logged only;
- * nothing reads it yet (the prompt, model, validator, and response are all
- * unchanged). It is the INERT seam Phase 8 consumes to emit
- * recommendedPage/links/nextAction.
+ * <p>The collected evidence now feeds prompt guidance, response chrome
+ * ({@code recommendedPage}, {@code links}, {@code nextAction}), and tracing,
+ * while remaining separate from the corpus chunk list used for answer grounding.
  *
  * @param pageGuides matched active page guides (never null; possibly empty)
  * @param links      matched active source links (never null; possibly empty)
