@@ -50,7 +50,7 @@ public class BrainProfileService {
     @Transactional
     public BrainProfile update(UUID brainId, BrainProfileRequest req) {
         BrainProfile profile = getOrCreate(brainId);
-        profile.setMode(BrainMode.valueOf(required(req.mode(), "mode")));
+        profile.setMode(parseMode(req.mode()));
         profile.setPurpose(required(req.purpose(), "purpose"));
         profile.setAudience(required(req.audience(), "audience"));
         profile.setPersonality(required(req.personality(), "personality"));
@@ -64,12 +64,7 @@ public class BrainProfileService {
         profile.setCtaPolicy(required(req.ctaPolicy(), "ctaPolicy"));
         profile.setDisclaimer(required(req.disclaimer(), "disclaimer"));
         profile.setPublicEnabled(req.publicEnabled());
-        profile.setAllowedDomains(req.allowedDomains() == null ? List.of() : req.allowedDomains().stream()
-                .map(String::strip)
-                .filter(s -> !s.isBlank())
-                .map(String::toLowerCase)
-                .distinct()
-                .toList());
+        profile.setAllowedDomains(normalizeAllowedDomains(req.allowedDomains()));
         return profiles.save(profile);
     }
 
@@ -78,5 +73,30 @@ public class BrainProfileService {
             throw new IllegalArgumentException(name + " is required");
         }
         return value.strip();
+    }
+
+    private static BrainMode parseMode(String value) {
+        String mode = required(value, "mode");
+        try {
+            return BrainMode.valueOf(mode);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "mode must be one of PUBLIC_SITE, PRIVATE_SITE, SECURE_DEPLOYMENT");
+        }
+    }
+
+    private static List<String> normalizeAllowedDomains(List<String> allowedDomains) {
+        if (allowedDomains == null) {
+            return List.of();
+        }
+        if (allowedDomains.stream().anyMatch(domain -> domain == null)) {
+            throw new IllegalArgumentException("allowedDomains must not contain null entries");
+        }
+        return allowedDomains.stream()
+                .map(String::strip)
+                .filter(s -> !s.isBlank())
+                .map(String::toLowerCase)
+                .distinct()
+                .toList();
     }
 }
