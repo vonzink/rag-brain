@@ -135,6 +135,38 @@ class PublicAskServiceTest {
     }
 
     @Test
+    void navigateDecisionMapsDownstreamEscalationToPublicEscalateResponse() {
+        Brain brain = new Brain(TestBrains.DEFAULT_ID, "generic", "Generic");
+        RagTrace trace = mock(RagTrace.class);
+        when(trace.getId()).thenReturn(UUID.randomUUID());
+        when(traceService.recordPublicDecision(any(), any(), any(), any(), any(), any()))
+                .thenReturn(trace);
+        when(brains.findBySlug("generic")).thenReturn(Optional.of(brain));
+        when(access.validate(eq(TestBrains.DEFAULT_ID), eq("token"), eq("https://example.com")))
+                .thenReturn(new BrainProfile());
+        ClarificationDecision decision = new ClarificationDecision(ResponseType.NAVIGATE,
+                "Go to purchase loans.", List.of(), Map.of("reason", "matched route"));
+        when(clarification.decide(eq(TestBrains.DEFAULT_ID), eq("Where should I go next?"), eq("PUBLIC"), any()))
+                .thenReturn(decision);
+        when(ask.ask(any(), eq(TestBrains.DEFAULT_ID), eq(SourceVisibility.PUBLIC))).thenReturn(new AskResponse(
+                UUID.randomUUID(), "Please contact support.", List.of(), 0.41, true,
+                "disclaimer", null, List.of(), "talk-to-human", UUID.randomUUID()));
+
+        var response = service.ask("generic", "token", "https://example.com",
+                new PublicAskRequest("s1", "Where should I go next?", "/", "PUBLIC",
+                        Map.of("current_page", "/")));
+
+        assertEquals("ESCALATE", response.responseType());
+        assertEquals("Please contact support.", response.answer());
+        verify(traceService).recordPublicDecision(eq(TestBrains.DEFAULT_ID), eq("s1"),
+                eq("Where should I go next?"),
+                argThat(facts -> facts.equals(Map.of("current_page", "/"))),
+                eq(decision),
+                eq(SourceVisibility.PUBLIC));
+        verify(ask).ask(any(), eq(TestBrains.DEFAULT_ID), eq(SourceVisibility.PUBLIC));
+    }
+
+    @Test
     void answerResponseMapsExistingAskResponse() {
         Brain brain = new Brain(TestBrains.DEFAULT_ID, "generic", "Generic");
         UUID conversationId = UUID.randomUUID();

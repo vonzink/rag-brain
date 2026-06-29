@@ -55,7 +55,7 @@ public class PublicAskService {
             traceService.recordPublicDecision(brain.getId(), req.sessionId(), req.message(), facts,
                     decision, SourceVisibility.PUBLIC);
             AskResponse answer = askService.ask(toAskRequest(req, surface), brain.getId(), SourceVisibility.PUBLIC);
-            return mapAnswer("NAVIGATE", answer);
+            return mapAnswer(answer.humanEscalationRequired() ? "ESCALATE" : "NAVIGATE", answer);
         }
         AskResponse answer = askService.ask(toAskRequest(req, surface), brain.getId(), SourceVisibility.PUBLIC);
         return mapAnswer(answer.humanEscalationRequired() ? "ESCALATE" : "ANSWER", answer);

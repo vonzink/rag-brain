@@ -40,6 +40,31 @@ Result:
 
 Status: DONE
 
+Task 6 public navigate escalation mapping fix:
+- `PublicAskService` now preserves the internal pre-retrieval `NAVIGATE` trace while mapping the final public response type from the downstream `AskResponse`.
+- Public responses return `ESCALATE` when `humanEscalationRequired()` is true, otherwise `NAVIGATE`.
+- Added a regression test for the `NAVIGATE` decision plus downstream escalation path.
+
+Changed files:
+- `src/main/java/com/msfg/rag/service/publicapi/PublicAskService.java`
+- `src/test/java/com/msfg/rag/service/publicapi/PublicAskServiceTest.java`
+
+Tests run:
+- `./gradlew test --tests com.msfg.rag.service.publicapi.PublicAskServiceTest`
+
+Results:
+- PASS
+
+Commit id:
+- `c8538d5`
+
+Concerns:
+- None.
+
+---
+
+Status: DONE
+
 Task 6 review follow-up fix:
 - Refusal traces now record explicit escalation clarification metadata from `AskService.refuse(...)` instead of relying on the trace-service fallback.
 - `RagTraceService` now sanitizes collected facts before freezing them, so null-valued public facts no longer blow up `recordPublicDecision(...)`.
