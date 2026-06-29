@@ -78,7 +78,7 @@ Verification commands/results:
   - PASS
 
 Commit id:
-- `fc12d6b`
+- `5dc8265`
 
 Concerns:
 - The dashboard now only unlocks the Personality form for a recognized `404` uninitialized-profile response. The current backend still returns a created profile on successful GET, so this path remains defensive rather than actively used.
