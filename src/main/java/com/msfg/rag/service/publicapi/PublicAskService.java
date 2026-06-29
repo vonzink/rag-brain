@@ -10,6 +10,7 @@ import com.msfg.rag.dto.PublicAskResponse;
 import com.msfg.rag.dto.PublicRecommendedPageDto;
 import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.service.AskService;
+import com.msfg.rag.service.audit.RagTraceService;
 import com.msfg.rag.service.clarification.ClarificationDecision;
 import com.msfg.rag.service.clarification.ClarificationService;
 import org.springframework.stereotype.Service;
@@ -24,13 +25,16 @@ public class PublicAskService {
     private final PublicAccessService access;
     private final ClarificationService clarification;
     private final AskService askService;
+    private final RagTraceService traceService;
 
     public PublicAskService(BrainRepository brains, PublicAccessService access,
-                            ClarificationService clarification, AskService askService) {
+                            ClarificationService clarification, AskService askService,
+                            RagTraceService traceService) {
         this.brains = brains;
         this.access = access;
         this.clarification = clarification;
         this.askService = askService;
+        this.traceService = traceService;
     }
 
     public PublicAskResponse ask(String slug, String token, String origin, PublicAskRequest req) {
@@ -41,6 +45,8 @@ public class PublicAskService {
         ClarificationDecision decision = clarification.decide(
                 brain.getId(), req.message(), surface, req.facts() == null ? Map.of() : req.facts());
         if (decision.responseType() == ResponseType.CLARIFY) {
+            traceService.recordPublicDecision(brain.getId(), req.sessionId(), req.message(),
+                    decision, SourceVisibility.PUBLIC);
             return new PublicAskResponse("CLARIFY", decision.question(), null, decision.question(),
                     decision.missingFacts(), List.of(), List.of(), 0.0, null, null);
         }

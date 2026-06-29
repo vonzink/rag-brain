@@ -10,6 +10,7 @@ import com.msfg.rag.dto.AskResponse;
 import com.msfg.rag.dto.PublicAskRequest;
 import com.msfg.rag.repository.BrainRepository;
 import com.msfg.rag.service.AskService;
+import com.msfg.rag.service.audit.RagTraceService;
 import com.msfg.rag.service.clarification.ClarificationDecision;
 import com.msfg.rag.service.clarification.ClarificationService;
 import org.junit.jupiter.api.Test;
@@ -38,7 +39,8 @@ class PublicAskServiceTest {
     private final PublicAccessService access = mock(PublicAccessService.class);
     private final ClarificationService clarification = mock(ClarificationService.class);
     private final AskService ask = mock(AskService.class);
-    private final PublicAskService service = new PublicAskService(brains, access, clarification, ask);
+    private final RagTraceService traceService = mock(RagTraceService.class);
+    private final PublicAskService service = new PublicAskService(brains, access, clarification, ask, traceService);
 
     @Test
     void clarifyResponseDoesNotCallAnswerModel() {
@@ -57,6 +59,23 @@ class PublicAskServiceTest {
         assertEquals("Is this for a primary residence?", response.clarifyingQuestion());
         verify(ask, never()).ask(any(), any());
         verifyNoMoreInteractions(ask);
+    }
+
+    @Test
+    void clarificationRecordsPublicTrace() {
+        Brain brain = new Brain(TestBrains.DEFAULT_ID, "generic", "Generic");
+        when(brains.findBySlug("generic")).thenReturn(Optional.of(brain));
+        when(access.validate(eq(TestBrains.DEFAULT_ID), eq("token"), eq("https://example.com")))
+                .thenReturn(new BrainProfile());
+        when(clarification.decide(eq(TestBrains.DEFAULT_ID), eq("Can I qualify?"), eq("PUBLIC"), any()))
+                .thenReturn(new ClarificationDecision(ResponseType.CLARIFY,
+                        "What is the occupancy?", List.of("occupancy"), Map.of("topic", "eligibility")));
+
+        service.ask("generic", "token", "https://example.com",
+                new PublicAskRequest("s1", "Can I qualify?", "/", "PUBLIC", Map.of()));
+
+        verify(traceService).recordPublicDecision(eq(TestBrains.DEFAULT_ID), eq("s1"),
+                eq("Can I qualify?"), any(), eq(SourceVisibility.PUBLIC));
     }
 
     @Test

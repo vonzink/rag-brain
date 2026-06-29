@@ -1,9 +1,12 @@
 package com.msfg.rag.service.audit;
 
 import com.msfg.rag.domain.RagTrace;
+import com.msfg.rag.domain.ResponseType;
+import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.dto.CitationDto;
 import com.msfg.rag.repository.RagTraceRepository;
 import com.msfg.rag.service.ai.Intent;
+import com.msfg.rag.service.clarification.ClarificationDecision;
 import com.msfg.rag.service.retrieval.PlannedEvidence;
 import com.msfg.rag.service.retrieval.RetrievalPlan;
 import com.msfg.rag.service.retrieval.RetrievedChunk;
@@ -36,13 +39,19 @@ public class RagTraceService {
                            List<CitationDto> citations,
                            String finalAnswer,
                            Double confidence,
-                           boolean escalation) {
+                           boolean escalation,
+                           ResponseType responseType,
+                           ClarificationDecision clarificationDecision,
+                           SourceVisibility visibility,
+                           Map<String, Object> confidenceReason,
+                           String validationOutcome) {
         RagTrace trace = new RagTrace();
         trace.setConversationId(conversationId);
         trace.setBrainId(brainId);
         trace.setUserQuestion(userQuestion);
         trace.setRewrittenQuestion(rewrittenQuestion);
         trace.setIntent(intent == null ? null : intent.name());
+        trace.setResponseType(responseType == null ? ResponseType.ANSWER.name() : responseType.name());
         trace.setRetrievalPlan(Map.of(
                 "indexes", plan == null ? List.of() : plan.indexes().stream().map(Enum::name).toList()));
         trace.setRetrievedContext(chunks == null ? List.of() : chunks.stream()
@@ -74,7 +83,39 @@ public class RagTraceService {
                 .toList());
         trace.setFinalAnswer(finalAnswer);
         trace.setConfidenceScore(confidence);
+        trace.setClarificationDecision(clarificationDecision == null
+                ? Map.of("decision", "answer")
+                : clarificationDecision.reason());
+        trace.setMissingFacts(clarificationDecision == null
+                ? List.of()
+                : clarificationDecision.missingFacts());
+        trace.setVisibilityFilter(visibility == null ? SourceVisibility.PUBLIC.name() : visibility.name());
+        trace.setConfidenceReason(confidenceReason == null
+                ? Map.of("confidence", confidence == null ? 0.0 : confidence)
+                : confidenceReason);
+        trace.setValidationOutcome(validationOutcome == null ? "valid" : validationOutcome);
         trace.setHumanEscalationRequired(escalation);
+        return repository.save(trace);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public RagTrace recordPublicDecision(UUID brainId,
+                                         String sessionId,
+                                         String userQuestion,
+                                         ClarificationDecision decision,
+                                         SourceVisibility visibility) {
+        RagTrace trace = new RagTrace();
+        trace.setBrainId(brainId);
+        trace.setUserQuestion(userQuestion);
+        trace.setResponseType(decision.responseType().name());
+        trace.setClarificationDecision(decision.reason());
+        trace.setMissingFacts(decision.missingFacts());
+        trace.setCollectedFacts(Map.of("session_id", sessionId));
+        trace.setRetrievedContext(List.of());
+        trace.setVisibilityFilter(visibility.name());
+        trace.setConfidenceReason(Map.of("reason", "pre-retrieval public decision"));
+        trace.setValidationOutcome("not_applicable");
+        trace.setHumanEscalationRequired(decision.responseType() == ResponseType.ESCALATE);
         return repository.save(trace);
     }
 }

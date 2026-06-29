@@ -84,7 +84,8 @@ class AskServiceBrainTest {
         RagTrace row = mock(RagTrace.class);
         when(row.getId()).thenReturn(UUID.randomUUID());
         when(trace.record(any(), any(), anyString(), any(), any(), any(), anyList(),
-                any(), anyList(), anyString(), any(), anyBoolean())).thenReturn(row);
+                any(), anyList(), anyString(), any(), anyBoolean(), any(), any(), any(), any(), anyString()))
+                .thenReturn(row);
         when(conversations.save(any())).thenAnswer(inv -> {
             Conversation c = inv.getArgument(0);
             if (c.getId() == null) {
