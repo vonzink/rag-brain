@@ -3,6 +3,7 @@ import {
   BrainCreateRequest,
   BrainProfileDto,
   BrainProfileRequest,
+  BrainReadiness,
   PublicAskRequest,
   PublicAskResponse,
   SyncReport,
@@ -76,6 +77,7 @@ export const brainsApi = {
   sync: (id: string, dryRun: boolean) =>
     api.post<SyncReport>(`/api/ai/admin/brains/${id}/sync?dryRun=${dryRun}`),
   remove: (id: string) => api.del<BrainAdminDto>(`/api/ai/admin/brains/${id}`),
+  readiness: (id: string) => api.get<BrainReadiness>(`/api/ai/admin/brains/${id}/readiness`),
 };
 
 export const profileApi = {

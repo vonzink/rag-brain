@@ -17,10 +17,20 @@ class CorsConfigTest {
 
         assertTrue(mappings.containsKey("/api/ai/mortgage/**"),
                 "the default slug keeps the existing mapping");
-        assertTrue(mappings.containsKey("/api/ai/conversations/**"),
-                "the conversation endpoints stay exposed");
         assertTrue(mappings.get("/api/ai/mortgage/**").getAllowedHeaders()
                 .contains("X-Admin-Api-Key"), "legacy ask route must allow the admin key header");
+    }
+
+    @Test
+    void publicAndConversationPathsAreHandledByTheDynamicFilterNotMvcMappings() {
+        Map<String, CorsConfiguration> mappings = register("mortgage");
+
+        // These moved to PublicCorsConfigurationSource so customer embed origins
+        // can be authorized at runtime; they must NOT be static MVC mappings.
+        assertFalse(mappings.containsKey("/api/ai/public/**"),
+                "public assistant CORS is dynamic, not a static MVC mapping");
+        assertFalse(mappings.containsKey("/api/ai/conversations/**"),
+                "conversation CORS is dynamic, not a static MVC mapping");
     }
 
     @Test
@@ -45,19 +55,6 @@ class CorsConfigTest {
                 "document metadata edits use PATCH");
         assertTrue(documents.getAllowedMethods().contains("DELETE"),
                 "document removal uses DELETE");
-    }
-
-    @Test
-    void exposesPublicAssistantPathWithPublicTokenHeader() {
-        Map<String, CorsConfiguration> mappings = register("mortgage");
-
-        assertTrue(mappings.containsKey("/api/ai/public/**"),
-                "public assistant endpoint must handle browser preflight");
-        CorsConfiguration config = mappings.get("/api/ai/public/**");
-        assertTrue(config.getAllowedMethods().contains("POST"));
-        assertTrue(config.getAllowedMethods().contains("OPTIONS"));
-        assertTrue(config.getAllowedHeaders().contains("Content-Type"));
-        assertTrue(config.getAllowedHeaders().contains("X-Public-Brain-Token"));
     }
 
     @Test

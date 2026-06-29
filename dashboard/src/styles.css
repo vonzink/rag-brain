@@ -348,6 +348,24 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
   border-bottom: 1px solid var(--border);
 }
 
+/* Connect wizard */
+.checklist { margin-top: 8px; }
+.wizard-nav { display: flex; justify-content: space-between; gap: 12px; }
+.token-reveal { margin-top: 10px; }
+.verify-result { margin-top: 12px; }
+.snippet { position: relative; margin-top: 10px; }
+.snippet-actions { position: absolute; top: 8px; right: 8px; }
+.snippet pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 14px 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }

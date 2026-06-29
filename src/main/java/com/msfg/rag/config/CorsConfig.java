@@ -1,14 +1,27 @@
 package com.msfg.rag.config;
 
+import com.msfg.rag.repository.BrainProfileRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.util.List;
+
 /**
  * CORS for the public website chat widget and the internal ops dashboard.
- * The ask and conversation endpoints serve the public widget; admin surfaces
- * are exposed for the dashboard and remain key-gated at the filter layer.
+ *
+ * <p>Admin and legacy surfaces use static, env-driven origins via the MVC CORS
+ * mappings below. The PUBLIC assistant + conversation endpoints instead use a
+ * dynamic {@link PublicCorsConfigurationSource} (registered as a high-priority
+ * {@link CorsFilter}) so the dashboard installer can authorize a customer site
+ * for embedding immediately by adding its domain to the brain profile — no
+ * restart required. The static origins still apply there too.
  *
  * Allowed origins come from CORS_ALLOWED_ORIGINS (comma-separated), e.g.
  * "https://app.example.com,https://www.example.com". Localhost defaults support
@@ -26,24 +39,28 @@ public class CorsConfig implements WebMvcConfigurer {
         this.slug = slug;
     }
 
+    /**
+     * Dynamic CORS for the public/embed paths. Registered ahead of the admin key
+     * filter so browser preflight succeeds before any auth, and scoped via URL
+     * patterns so admin/legacy paths fall through to the MVC mappings.
+     */
+    @Bean
+    FilterRegistrationBean<CorsFilter> publicCorsFilter(BrainProfileRepository profiles) {
+        CorsConfigurationSource source = new PublicCorsConfigurationSource(
+                List.of(allowedOrigins), profiles);
+        FilterRegistrationBean<CorsFilter> registration = new FilterRegistrationBean<>(new CorsFilter(source));
+        registration.addUrlPatterns("/api/ai/public/*", "/api/ai/conversations/*");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        registration.setName("publicCorsFilter");
+        return registration;
+    }
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/ai/" + slug + "/**")
                 .allowedOrigins(allowedOrigins)
                 .allowedMethods("POST", "OPTIONS")
                 .allowedHeaders("Content-Type", "X-Admin-Api-Key")
-                .maxAge(3600);
-
-        registry.addMapping("/api/ai/public/**")
-                .allowedOrigins(allowedOrigins)
-                .allowedMethods("POST", "OPTIONS")
-                .allowedHeaders("Content-Type", "X-Public-Brain-Token")
-                .maxAge(3600);
-
-        registry.addMapping("/api/ai/conversations/**")
-                .allowedOrigins(allowedOrigins)
-                .allowedMethods("GET", "OPTIONS")
-                .allowedHeaders("Content-Type", "X-Session-Id")
                 .maxAge(3600);
 
         // PATCH is used to edit source links and page guides; DELETE removes

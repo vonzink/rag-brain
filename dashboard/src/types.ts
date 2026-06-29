@@ -50,6 +50,31 @@ export interface PublicAskResponse {
   confidence: number;
   nextAction: string | null;
   conversationId: string | null;
+  disclaimer: string | null;
+  humanEscalationRequired: boolean;
+}
+
+export interface ConnectChecklistItem {
+  key: string;
+  label: string;
+  ok: boolean;
+  hint: string | null;
+}
+
+export interface BrainReadiness {
+  brainId: string;
+  slug: string;
+  displayName: string;
+  active: boolean;
+  isDefault: boolean;
+  chunks: number;
+  activeDocuments: number;
+  publicEnabled: boolean;
+  mode: string;
+  hasPublicToken: boolean;
+  allowedDomains: string[];
+  ready: boolean;
+  checklist: ConnectChecklistItem[];
 }
 
 export interface DocumentDto {

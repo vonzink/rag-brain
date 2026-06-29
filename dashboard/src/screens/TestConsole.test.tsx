@@ -32,6 +32,8 @@ describe("TestConsole", () => {
       confidence: 0.42,
       nextAction: "Ask the user for the loan program.",
       conversationId: "conv-1",
+      disclaimer: null,
+      humanEscalationRequired: false,
     });
 
     render(<TestConsole slug="msfg" />);

@@ -88,6 +88,52 @@ Show a typing/thinking indicator; do not set client timeouts below 60s.
 
 ---
 
+## 1b. Drop-in widget (no build step)
+
+The fastest way to attach a brain to a website. Paste this before `</body>`; it
+renders a floating chat button and panel that calls the public endpoint and
+enforces the compliance UI (always shows the disclaimer, renders citations, and
+surfaces a human-handoff CTA when `humanEscalationRequired` is true):
+
+```html
+<script src="https://your-brain-host/widget/rag-brain-widget.js"
+        data-rag-api="https://your-brain-host"
+        data-rag-slug="your-brain-slug"
+        data-rag-token="rb_pub_..."
+        data-rag-title="Ask us anything"
+        defer></script>
+```
+
+Attributes:
+- `data-rag-api` (required): base URL of the brain host (no trailing slash).
+- `data-rag-slug` (required): the brain's slug.
+- `data-rag-token` (required): the public token (`rb_pub_...`).
+- `data-rag-title` (optional): header text for the panel.
+- `data-rag-accent` (optional): accent color, e.g. `#2563eb`.
+
+The widget script is served by the brain host at `/widget/rag-brain-widget.js`.
+The site's origin must be allowlisted on the brain (see the installer below).
+
+---
+
+## Connecting via the dashboard installer
+
+The dashboard has a **Connect** screen that walks through the whole setup:
+
+1. **Choose brain** — pick which brain to attach; a live checklist shows what's left.
+2. **Knowledge** — confirm the corpus is synced (the assistant only answers from approved sources).
+3. **Voice & compliance** — set the disclaimer, purpose, audience, tone, and confidence target.
+4. **Publish** — list the website domain(s), enable public access, and generate the public token.
+   Entered domains are authorized for cross-origin (CORS) requests **immediately** — no restart —
+   because the public endpoints use per-brain dynamic CORS driven by the brain profile's allowed
+   domains (the static `CORS_ALLOWED_ORIGINS` list still applies as well).
+5. **Embed** — copy a ready-to-paste widget snippet or server snippet (cURL / JavaScript / Python).
+6. **Verify** — send a live test question through the public endpoint to confirm it works.
+
+The public token is shown once and stored only as a hash; regenerating it invalidates the old one.
+
+---
+
 ## 2. Conversation history (optional)
 
 ```
@@ -112,11 +158,13 @@ Returns 404 if the conversationId doesn't exist OR belongs to a different sessio
 
 ## CORS
 
-Allowed origins are configured server-side via `CORS_ALLOWED_ORIGINS`.
-Local dev defaults: `http://localhost:3000`, `http://localhost:5173`.
-Tell the brain team the website's dev/prod origins so they can be added.
-Only `POST /api/ai/public/**` and `GET /api/ai/conversations/**` are exposed
-cross-origin. Admin endpoints are not, by design.
+The public endpoints (`POST /api/ai/public/**` and `GET /api/ai/conversations/**`)
+use **dynamic per-brain CORS**: any origin whose host is listed in a brain's
+allowed domains (set in the Connect installer / brain profile) is authorized
+automatically, with no restart. The static `CORS_ALLOWED_ORIGINS` list
+(local dev defaults: `http://localhost:3000`, `http://localhost:5173`) is always
+honored too. Admin endpoints remain env-allowlisted and are not exposed for
+public browser use, by design.
 
 ---
 
