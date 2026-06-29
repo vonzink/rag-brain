@@ -59,6 +59,7 @@ public class OpenAiCompatibleProvider implements AiModelProvider {
                 .build());
 
         ChatResponse response = chatModel.call(prompt);
+        String content = requireContent(response);
 
         Integer promptTokens = null;
         Integer completionTokens = null;
@@ -67,7 +68,7 @@ public class OpenAiCompatibleProvider implements AiModelProvider {
             completionTokens = response.getMetadata().getUsage().getCompletionTokens();
         }
 
-        return new AiResponse(response.getResult().getOutput().getText(),
+        return new AiResponse(content,
                 providerName, model, promptTokens, completionTokens);
     }
 

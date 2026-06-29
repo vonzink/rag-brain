@@ -108,6 +108,29 @@ class BrainAdminControllerTest {
     }
 
     @Test
+    void createRejectsUnknownProvider() {
+        when(brains.findBySlug("lending")).thenReturn(Optional.empty());
+        when(router.providerNames()).thenReturn(java.util.Set.of("anthropic", "openai"));
+        BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
+                "lending", "Lending Brain", "packs/test-pack", "local",
+                null, null, null, "/corpora/lending",
+                "made-up-provider", "claude-haiku-4-5", "openai", "gpt-4.1-nano", null);
+        assertThrows(IllegalArgumentException.class, () -> noPackCheck().create(req));
+    }
+
+    @Test
+    void createAllowsRegisteredProvider() {
+        when(brains.findBySlug("lending")).thenReturn(Optional.empty());
+        when(brains.save(any(Brain.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(router.providerNames()).thenReturn(java.util.Set.of("anthropic", "openai"));
+        BrainAdminController.CreateBrainRequest req = new BrainAdminController.CreateBrainRequest(
+                "lending", "Lending Brain", "packs/test-pack", "local",
+                null, null, null, "/corpora/lending",
+                "anthropic", "claude-haiku-4-5", "openai", "gpt-4.1-nano", null);
+        assertEquals("lending", noPackCheck().create(req).slug());
+    }
+
+    @Test
     void createRejectsBadSlug() {
         BrainAdminController.CreateBrainRequest req = req("Bad Slug", "local");
         assertThrows(IllegalArgumentException.class, () -> controller.create(req));

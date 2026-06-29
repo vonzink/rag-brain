@@ -90,6 +90,10 @@ msfg:
     ai:
       connect-timeout-ms: ${AI_CONNECT_TIMEOUT_MS:10000}
       read-timeout-ms: ${AI_READ_TIMEOUT_MS:60000}
+      # Caps the source context packed into a prompt (cl100k_base tokens). Guards
+      # against overflowing a model's context window on large retrievals; the
+      # top-ranked chunk is always kept even if it alone exceeds the budget.
+      max-context-tokens: ${AI_MAX_CONTEXT_TOKENS:12000}
     routing:
       default-provider: ${DEFAULT_AI_PROVIDER:anthropic}
       fallback-provider: ${FALLBACK_AI_PROVIDER:openai}

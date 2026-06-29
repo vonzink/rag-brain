@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import static com.msfg.rag.TestBrains.DEFAULT_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -46,6 +47,29 @@ class PromptBuilderServiceTest {
                 "selling-guide.pdf", "Selling Guide 2026",
                 "B3-3.1-01", 12, LocalDate.of(2026, 1, 1),
                 0.9, 0.7, 0.83);
+    }
+
+    private RetrievedChunk chunkWithContent(String content) {
+        return new RetrievedChunk(
+                UUID.randomUUID(), UUID.randomUUID(),
+                content, "Source", "AGENCY_GUIDELINE",
+                "doc.pdf", "Doc", "S1", 1, LocalDate.of(2026, 1, 1),
+                0.9, 0.7, 0.83);
+    }
+
+    @Test
+    void capsSourceContextToTokenBudget() {
+        String filler = "lorem ipsum dolor sit amet ".repeat(50);
+        RetrievedChunk first = chunkWithContent("FIRST-CHUNK " + filler);
+        RetrievedChunk second = chunkWithContent("SECOND-CHUNK " + filler);
+        PromptBuilderService capped =
+                new PromptBuilderService(TestPacks.registry(), rulesService, profileService, 40);
+
+        String prompt = capped.build("Q?", List.of(first, second), DEFAULT_ID);
+
+        // Top-ranked chunk is always kept; the second blows the 40-token budget.
+        assertTrue(prompt.contains("FIRST-CHUNK"));
+        assertFalse(prompt.contains("SECOND-CHUNK"));
     }
 
     @Test

@@ -235,10 +235,34 @@ public class BrainAdminController {
             brain.setS3Prefix(null);
             brain.setS3Region(null);
         }
+        validateProvider("answerProvider", answerProvider);
+        validateProvider("utilityProvider", utilityProvider);
         brain.setAnswerProvider(trimToNull(answerProvider));
         brain.setAnswerModel(trimToNull(answerModel));
         brain.setUtilityProvider(trimToNull(utilityProvider));
         brain.setUtilityModel(trimToNull(utilityModel));
+    }
+
+    /**
+     * Reject a brain configured to use a provider that isn't registered — otherwise
+     * the misconfiguration only surfaces as a runtime failure on the first question.
+     * A null/blank provider means "inherit the global default", which is allowed.
+     * When no providers are registered at all (keyless admin-only boot) we skip the
+     * check so operators can still configure brains before keys are wired in.
+     */
+    private void validateProvider(String field, String provider) {
+        String p = trimToNull(provider);
+        if (p == null) {
+            return;
+        }
+        java.util.Set<String> known = router.providerNames();
+        if (known == null || known.isEmpty()) {
+            return;
+        }
+        if (!known.contains(p)) {
+            throw new IllegalArgumentException(
+                    field + " '" + p + "' is not a configured provider. Configured: " + known);
+        }
     }
 
     private void requireSourceBinding(String sourceType, String localPath, String s3Bucket) {
