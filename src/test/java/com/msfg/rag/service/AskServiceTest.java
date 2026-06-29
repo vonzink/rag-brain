@@ -594,6 +594,73 @@ class AskServiceTest {
     }
 
     @Test
+    void filterToRetrievedKeepsCitationsMatchingADocumentName() {
+        List<CitationDto> model = List.of(
+                new CitationDto("Some label", "selling-guide.pdf", "B7", "1", null));
+        List<CitationDto> kept = AskService.filterToRetrieved(model, List.of(
+                chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1))));
+        assertEquals(1, kept.size());
+    }
+
+    @Test
+    void filterToRetrievedMatchesBySourceNameCaseInsensitively() {
+        List<CitationDto> model = List.of(
+                new CitationDto("fannie mae selling guide", "renamed.pdf", null, null, null));
+        List<CitationDto> kept = AskService.filterToRetrieved(model, List.of(
+                chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1))));
+        assertEquals(1, kept.size());
+    }
+
+    @Test
+    void filterToRetrievedDropsFabricatedCitations() {
+        List<CitationDto> model = List.of(
+                new CitationDto("Totally Made Up", "ghost.pdf", "Z", "9", null));
+        List<CitationDto> kept = AskService.filterToRetrieved(model, List.of(
+                chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1))));
+        assertTrue(kept.isEmpty());
+    }
+
+    @Test
+    void fabricatedModelCitationsAreReplacedWithRetrievedSources() {
+        // The model returns a confident, grounded answer but cites a source that
+        // was never retrieved — a fabricated citation that must not reach the user.
+        String json = """
+                {"answer":"PMI is private mortgage insurance that may be required on conventional loans.",
+                 "citations":[{"source_name":"Totally Made Up","document_name":"ghost.pdf","section":"Z","page_number":"1"}],
+                 "confidence":0.85,
+                 "human_escalation_required":false,
+                 "disclaimer":"d"}""";
+
+        AskResponse response = askServiceReturning(json, List.of(
+                chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1))))
+                .ask(pmiQuestion(), TestBrains.DEFAULT_ID);
+
+        assertFalse(response.humanEscalationRequired());
+        assertEquals(1, response.citations().size(), "fabricated citation must be replaced by retrieved sources");
+        assertEquals("Fannie Mae Selling Guide", response.citations().get(0).sourceName());
+    }
+
+    @Test
+    void verifiableModelCitationsArePreservedAndFabricatedOnesDropped() {
+        // Mixed: one citation matches a retrieved source, one is fabricated.
+        String json = """
+                {"answer":"PMI is private mortgage insurance.",
+                 "citations":[
+                   {"source_name":"Fannie Mae Selling Guide","document_name":"selling-guide.pdf","section":"B7-1","page_number":"1"},
+                   {"source_name":"Totally Made Up","document_name":"ghost.pdf","section":"Z","page_number":"9"}],
+                 "confidence":0.85,
+                 "human_escalation_required":false,
+                 "disclaimer":"d"}""";
+
+        AskResponse response = askServiceReturning(json, List.of(
+                chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1))))
+                .ask(pmiQuestion(), TestBrains.DEFAULT_ID);
+
+        assertEquals(1, response.citations().size());
+        assertEquals("selling-guide.pdf", response.citations().get(0).documentName());
+    }
+
+    @Test
     void ensureCitationsKeepsModelProvidedCitations() {
         List<CitationDto> modelCitations = List.of(
                 new CitationDto("Model Cited Source", "model.pdf", "sec", "5", "2026-01-01"));

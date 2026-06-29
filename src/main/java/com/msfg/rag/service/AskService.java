@@ -38,9 +38,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -213,14 +215,27 @@ public class AskService {
                     contentValidation.failureReason(), rewrittenQuestion, intent, plan, sideEvidence, visibility);
         }
 
-        // 4c. Salvage grounded answers that omit citations. The answer model
-        //     sometimes returns a correct, grounded answer with no citations
-        //     array; attach the approved source chunks rather than discard the
-        //     answer and escalate. We only reach here when retrieval evidence
-        //     was sufficient, so the chunks are the exact sources the prompt was
-        //     grounded in (and they are already persisted as the answer trail).
-        if (modelAnswer.citations() == null || modelAnswer.citations().isEmpty()) {
-            log.info("Model answer omitted citations; attaching {} retrieved source(s)",
+        // 4c. Citation integrity: drop any model citation that does not match a
+        //     retrieved source. The model can only honestly cite the [Source N]
+        //     blocks it was given (their source/document names are exactly what
+        //     we put in the prompt), so a citation to anything else is fabricated
+        //     and must not be shown.
+        List<CitationDto> verifiedCitations = filterToRetrieved(modelAnswer.citations(), retrieval.chunks());
+        int suppliedCitations = modelAnswer.citations() == null ? 0 : modelAnswer.citations().size();
+        if (suppliedCitations > verifiedCitations.size()) {
+            log.warn("Dropped {} model citation(s) not matching any retrieved source",
+                    suppliedCitations - verifiedCitations.size());
+        }
+        modelAnswer = withCitations(modelAnswer, verifiedCitations);
+
+        // 4d. Salvage grounded answers that end up citation-less (model omitted
+        //     citations, or all of them were fabricated and filtered out). Attach
+        //     the approved source chunks rather than discard a correct, grounded
+        //     answer. We only reach here when retrieval evidence was sufficient,
+        //     so the chunks are the exact sources the prompt was grounded in (and
+        //     they are already persisted as the answer trail).
+        if (verifiedCitations.isEmpty()) {
+            log.info("Model answer had no verifiable citations; attaching {} retrieved source(s)",
                     retrieval.chunks().size());
         }
         modelAnswer = ensureCitations(modelAnswer, retrieval.chunks());
@@ -379,6 +394,55 @@ public class AskService {
             source.setEffectiveDate(chunk.effectiveDate());
             answerSourceRepository.save(source);
         }
+    }
+
+    /**
+     * Keeps only the model citations that correspond to a retrieved source,
+     * matched by document name or source name (case-insensitive). Anything else
+     * was not in the prompt context and is therefore fabricated.
+     */
+    static List<CitationDto> filterToRetrieved(List<CitationDto> citations, List<RetrievedChunk> chunks) {
+        if (citations == null || citations.isEmpty()) {
+            return List.of();
+        }
+        Set<String> documentNames = new HashSet<>();
+        Set<String> sourceNames = new HashSet<>();
+        for (RetrievedChunk chunk : chunks) {
+            if (chunk.documentName() != null) {
+                documentNames.add(normalizeName(chunk.documentName()));
+            }
+            if (chunk.sourceName() != null) {
+                sourceNames.add(normalizeName(chunk.sourceName()));
+            }
+        }
+        return citations.stream()
+                .filter(citation -> matchesRetrieved(citation, documentNames, sourceNames))
+                .toList();
+    }
+
+    private static boolean matchesRetrieved(CitationDto citation,
+                                            Set<String> documentNames, Set<String> sourceNames) {
+        if (citation == null) {
+            return false;
+        }
+        boolean docMatch = citation.documentName() != null
+                && documentNames.contains(normalizeName(citation.documentName()));
+        boolean sourceMatch = citation.sourceName() != null
+                && sourceNames.contains(normalizeName(citation.sourceName()));
+        return docMatch || sourceMatch;
+    }
+
+    private static String normalizeName(String value) {
+        return value.strip().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private static ModelAnswer withCitations(ModelAnswer answer, List<CitationDto> citations) {
+        return new ModelAnswer(
+                answer.answer(),
+                citations,
+                answer.confidence(),
+                answer.humanEscalationRequired(),
+                answer.disclaimer());
     }
 
     /**
