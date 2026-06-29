@@ -16,6 +16,15 @@ export class AuthError extends Error {
   }
 }
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export const adminKey = {
   get: () => sessionStorage.getItem(KEY_STORAGE),
   set: (key: string) => sessionStorage.setItem(KEY_STORAGE, key),
@@ -34,7 +43,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { error?: string } | null;
-    throw new Error(body?.error ?? `HTTP ${response.status}`);
+    throw new ApiError(response.status, body?.error ?? `HTTP ${response.status}`);
   }
   return response.json() as Promise<T>;
 }

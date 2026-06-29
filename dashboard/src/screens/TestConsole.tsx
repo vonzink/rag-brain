@@ -9,7 +9,6 @@ export default function TestConsole({ slug }: { slug: string }) {
   const [pageRoute, setPageRoute] = useState("");
   const [surface, setSurface] = useState("PUBLIC");
   const [publicToken, setPublicToken] = useState("");
-  const [origin, setOrigin] = useState(() => window.location.origin);
   const [factsText, setFactsText] = useState("{}");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,15 +49,8 @@ export default function TestConsole({ slug }: { slug: string }) {
           surface,
         }));
       } else if (mode === "public") {
-        const typedOrigin = origin.trim();
         if (!publicToken.trim()) {
           throw new Error("Public token is required");
-        }
-        if (!typedOrigin) {
-          throw new Error("Origin is required");
-        }
-        if (typedOrigin !== normalizedOrigin) {
-          throw new Error(`Browser requests use ${normalizedOrigin}. Update the allowed domain or open the dashboard from that origin.`);
         }
         setPublicAnswer(await publicAsk(slug, publicToken.trim(), {
           sessionId,
@@ -120,8 +112,8 @@ export default function TestConsole({ slug }: { slug: string }) {
       {mode === "public" && (
         <>
           <div className="ask-bar" style={{ marginTop: 8 }}>
-            <input value={origin} onChange={(e) => setOrigin(e.target.value)} />
-            <span className="muted">browser sends {normalizedOrigin}</span>
+            <input value={normalizedOrigin} readOnly />
+            <span className="muted">browser origin used for public requests</span>
           </div>
           <textarea
             className="console-textarea"

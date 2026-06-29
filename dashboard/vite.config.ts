@@ -9,7 +9,8 @@ export default defineConfig({
     proxy: { "/api": "http://localhost:8091" },
   },
   test: {
-    environment: "node",
-    include: ["src/**/*.test.ts"],
+    environment: "jsdom",
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    setupFiles: ["./src/test/setup.ts"],
   },
 });

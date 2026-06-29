@@ -28,7 +28,7 @@ export interface PublicAskRequest {
   sessionId: string;
   message: string;
   pageRoute: string | null;
-  surface: "PUBLIC" | "INTERNAL" | "SECURE";
+  surface: "PUBLIC";
   facts: Record<string, unknown>;
 }
 

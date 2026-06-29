@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { profileApi } from "../api";
+import { ApiError, profileApi } from "../api";
 import { BrainProfileDto, BrainProfileRequest, Stats } from "../types";
 import { ErrorNote, Pill } from "../components";
 
@@ -12,21 +12,25 @@ function defaultProfile(brainId: string): BrainProfileDto {
   return {
     brainId,
     mode: "PUBLIC_SITE",
-    purpose: "",
-    audience: "",
-    personality: "",
-    tone: "",
-    expertiseLevel: "",
-    answerLength: "",
-    confidenceTarget: 0.7,
-    clarificationPolicy: "",
-    escalationPolicy: "",
-    citationPolicy: "",
-    ctaPolicy: "",
-    disclaimer: "",
-    publicEnabled: false,
+    purpose: "Answer questions from approved sources.",
+    audience: "public visitor",
+    personality: "Conversational, concise, source-grounded assistant.",
+    tone: "professional",
+    expertiseLevel: "intermediate",
+    answerLength: "balanced",
+    confidenceTarget: 0.9,
+    clarificationPolicy: "Ask one focused clarifying question when required facts are missing.",
+    escalationPolicy: "Escalate personalized, unsupported, sensitive, or low-confidence requests.",
+    citationPolicy: "required_when_sources_used",
+    ctaPolicy: "Recommend relevant pages or a human handoff when useful.",
+    disclaimer: "This answer is generated from approved source context and may be incomplete.",
+    publicEnabled: true,
     allowedDomains: [],
   };
+}
+
+function isUninitializedProfileError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
 }
 
 export default function Personality({ stats }: { stats: Stats | null }) {
@@ -57,9 +61,14 @@ export default function Personality({ stats }: { stats: Stats | null }) {
       })
       .catch((e) => {
         setError((e as Error).message);
-        const fallback = defaultProfile(brainId);
-        setProfile(fallback);
-        setDraft(toRequest(fallback));
+        if (isUninitializedProfileError(e)) {
+          const fallback = defaultProfile(brainId);
+          setProfile(fallback);
+          setDraft(toRequest(fallback));
+          return;
+        }
+        setProfile(null);
+        setDraft(null);
       })
       .finally(() => setLoading(false));
   }, [brainId]);
@@ -70,7 +79,27 @@ export default function Personality({ stats }: { stats: Stats | null }) {
   );
 
   if (!brainId) return <h1>Personality</h1>;
-  if (!draft) return <h1>Personality</h1>;
+  if (!draft) {
+    return (
+      <>
+        <header className="screen-head">
+          <div>
+            <h1>Personality</h1>
+            <span className="muted">control public assistant behavior for the active brain</span>
+          </div>
+          <div className="chips">
+            <Pill tone="gray">{stats?.brain.slug ?? "brain"}</Pill>
+            <Pill tone="gray">{brainId.slice(0, 8)}</Pill>
+            {loading && <Pill tone="gray">loading</Pill>}
+          </div>
+        </header>
+        <ErrorNote message={error} />
+        <div className="card">
+          <p className="muted">Profile unavailable until the active brain profile loads successfully.</p>
+        </div>
+      </>
+    );
+  }
 
   const set = <K extends keyof BrainProfileRequest>(key: K, value: BrainProfileRequest[K]) =>
     setDraft({ ...draft, [key]: value });

@@ -38,3 +38,47 @@ Commit id:
 
 Concerns:
 - The public test mode intentionally does not let the dashboard fake a different `Origin` header. To test a different allowed domain, the dashboard must actually be loaded from that origin or the allowed-domain list must include the dashboard's real browser origin.
+
+---
+
+Fix follow-up:
+
+Status:
+- Complete
+
+Changed files:
+- `dashboard/package.json`
+- `dashboard/package-lock.json`
+- `dashboard/vite.config.ts`
+- `dashboard/src/test/setup.ts`
+- `dashboard/src/api.ts`
+- `dashboard/src/types.ts`
+- `dashboard/src/screens/Personality.tsx`
+- `dashboard/src/screens/TestConsole.tsx`
+- `dashboard/src/screens/Personality.test.tsx`
+- `dashboard/src/screens/TestConsole.test.tsx`
+
+TDD red/green evidence:
+- Red:
+  - Command: `cd dashboard && npm run test -- --run src/screens/Personality.test.tsx src/screens/TestConsole.test.tsx`
+  - Result: FAIL
+  - Evidence:
+    - `Personality > keeps the form locked after a profile load failure` failed because `Save profile` was still rendered after `profileApi.get` rejected.
+    - `TestConsole > renders public clarify responses and shows the effective origin as read-only` failed because the origin field was editable (`readOnly` was `false`).
+- Green:
+  - Command: `cd dashboard && npm run test -- --run src/screens/Personality.test.tsx src/screens/TestConsole.test.tsx`
+  - Result: PASS (`4 passed`)
+
+Verification commands/results:
+- `cd dashboard && npm run test -- --run`
+  - PASS (`3 files, 8 tests`)
+- `cd dashboard && npm run build`
+  - PASS
+- `cd dashboard && npm run check`
+  - PASS
+
+Commit id:
+- `fc12d6b`
+
+Concerns:
+- The dashboard now only unlocks the Personality form for a recognized `404` uninitialized-profile response. The current backend still returns a created profile on successful GET, so this path remains defensive rather than actively used.
