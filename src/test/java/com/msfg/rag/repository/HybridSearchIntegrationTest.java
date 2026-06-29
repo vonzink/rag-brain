@@ -226,11 +226,41 @@ class HybridSearchIntegrationTest {
                 SourceVisibility.INTERNAL, SourceTrustLevel.APPROVED);
         saveChunk(internalDoc, 0, "Gift funds internal policy details.", unitVector(0));
 
-        List<ChunkSearchResult> results = chunkRepository.searchByKeyword(
+        List<ChunkSearchResult> results = chunkRepository.searchByKeywordAdmin(
                 "gift funds", 10, TestBrains.DEFAULT_ID, null);
 
         assertTrue(results.stream().anyMatch(r -> r.getSourceName().equals("Fannie Mae Selling Guide")));
         assertTrue(results.stream().anyMatch(r -> r.getSourceName().equals("Internal Guide")));
+    }
+
+    @Test
+    void adminKeywordSearchCanSeeBlockedDocuments() {
+        MortgageDocument blockedDoc = saveDocument("Blocked Guide", true, null,
+                SourceVisibility.PUBLIC, SourceTrustLevel.BLOCKED);
+        saveChunk(blockedDoc, 0, "Gift funds blocked policy details.", unitVector(0));
+
+        List<ChunkSearchResult> results = chunkRepository.searchByKeywordAdmin(
+                "gift funds", 10, TestBrains.DEFAULT_ID, null);
+
+        assertTrue(results.stream().anyMatch(r -> r.getSourceName().equals("Blocked Guide")));
+    }
+
+    @Test
+    void adminVectorSearchWithVisibilityFilterCanSeeBlockedDocuments() {
+        MortgageDocument internalDoc = saveDocument("Internal Guide", true, null,
+                SourceVisibility.INTERNAL, SourceTrustLevel.APPROVED);
+        saveChunk(internalDoc, 0, "Gift funds internal policy details.", unitVector(0));
+
+        MortgageDocument blockedDoc = saveDocument("Blocked Guide", true, null,
+                SourceVisibility.PUBLIC, SourceTrustLevel.BLOCKED);
+        saveChunk(blockedDoc, 0, "Gift funds blocked policy details.", unitVector(0));
+
+        String query = EmbeddingService.toVectorLiteral(unitVector(0));
+        List<ChunkSearchResult> results = chunkRepository.searchByVectorAdmin(
+                query, 10, TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC.name());
+
+        assertTrue(results.stream().anyMatch(r -> r.getSourceName().equals("Blocked Guide")));
+        assertTrue(results.stream().noneMatch(r -> r.getSourceName().equals("Internal Guide")));
     }
 
     // ------------------------------------------------------------------

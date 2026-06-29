@@ -44,6 +44,38 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
               AND (d.effective_date IS NULL OR d.effective_date <= CURRENT_DATE)
               AND (d.expiration_date IS NULL OR d.expiration_date >= CURRENT_DATE)
               AND (:visibility IS NULL OR d.visibility = :visibility)
+              AND c.brain_id = :brainId
+              AND COALESCE(c.chunk_type, 'CHILD') = 'CHILD'
+              AND c.embedding IS NOT NULL
+            ORDER BY c.embedding <=> CAST(:embedding AS vector)
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<ChunkSearchResult> searchByVectorAdmin(@Param("embedding") String embedding,
+                                                @Param("limit") int limit,
+                                                @Param("brainId") UUID brainId,
+                                                @Param("visibility") String visibility);
+
+    @Query(value = """
+            SELECT c.id                                            AS chunkId,
+                   c.document_id                                   AS documentId,
+                   c.content                                       AS content,
+                   p.id                                            AS parentChunkId,
+                   p.content                                       AS parentContent,
+                   c.hierarchy_path                                AS hierarchyPath,
+                   c.metadata::text                                AS metadataJson,
+                   d.source_name                                   AS sourceName,
+                   d.source_type                                   AS sourceType,
+                   d.file_name                                     AS documentName,
+                   d.title                                         AS documentTitle,
+                   d.effective_date                                AS effectiveDate,
+                   1 - (c.embedding <=> CAST(:embedding AS vector)) AS score
+            FROM brain_document_chunks c
+            LEFT JOIN brain_document_chunks p ON p.id = c.parent_chunk_id
+            JOIN brain_documents d ON d.id = c.document_id
+            WHERE d.is_active = TRUE
+              AND (d.effective_date IS NULL OR d.effective_date <= CURRENT_DATE)
+              AND (d.expiration_date IS NULL OR d.expiration_date >= CURRENT_DATE)
+              AND d.visibility = :visibility
               AND d.trust_level <> 'BLOCKED'
               AND c.brain_id = :brainId
               AND COALESCE(c.chunk_type, 'CHILD') = 'CHILD'
@@ -82,6 +114,38 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
               AND (d.effective_date IS NULL OR d.effective_date <= CURRENT_DATE)
               AND (d.expiration_date IS NULL OR d.expiration_date >= CURRENT_DATE)
               AND (:visibility IS NULL OR d.visibility = :visibility)
+              AND c.brain_id = :brainId
+              AND COALESCE(c.chunk_type, 'CHILD') = 'CHILD'
+              AND c.content_tsv @@ websearch_to_tsquery('english', :query)
+            ORDER BY score DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<ChunkSearchResult> searchByKeywordAdmin(@Param("query") String query,
+                                                 @Param("limit") int limit,
+                                                 @Param("brainId") UUID brainId,
+                                                 @Param("visibility") String visibility);
+
+    @Query(value = """
+            SELECT c.id                                            AS chunkId,
+                   c.document_id                                   AS documentId,
+                   c.content                                       AS content,
+                   p.id                                            AS parentChunkId,
+                   p.content                                       AS parentContent,
+                   c.hierarchy_path                                AS hierarchyPath,
+                   c.metadata::text                                AS metadataJson,
+                   d.source_name                                   AS sourceName,
+                   d.source_type                                   AS sourceType,
+                   d.file_name                                     AS documentName,
+                   d.title                                         AS documentTitle,
+                   d.effective_date                                AS effectiveDate,
+                   ts_rank_cd(c.content_tsv, websearch_to_tsquery('english', :query), 32) AS score
+            FROM brain_document_chunks c
+            LEFT JOIN brain_document_chunks p ON p.id = c.parent_chunk_id
+            JOIN brain_documents d ON d.id = c.document_id
+            WHERE d.is_active = TRUE
+              AND (d.effective_date IS NULL OR d.effective_date <= CURRENT_DATE)
+              AND (d.expiration_date IS NULL OR d.expiration_date >= CURRENT_DATE)
+              AND d.visibility = :visibility
               AND d.trust_level <> 'BLOCKED'
               AND c.brain_id = :brainId
               AND COALESCE(c.chunk_type, 'CHILD') = 'CHILD'

@@ -74,7 +74,7 @@ public class RetrievalService {
 
     @Transactional(readOnly = true)
     public RetrievalResult retrieve(String question, UUID brainId, SourceVisibility visibility) {
-        return retrieveByVisibility(question, brainId, visibility);
+        return retrieveByVisibility(question, brainId, visibility, false);
     }
 
     @Transactional(readOnly = true)
@@ -84,10 +84,13 @@ public class RetrievalService {
 
     @Transactional(readOnly = true)
     public RetrievalResult retrieveAdmin(String question, UUID brainId, SourceVisibility visibility) {
-        return retrieveByVisibility(question, brainId, visibility);
+        return retrieveByVisibility(question, brainId, visibility, true);
     }
 
-    private RetrievalResult retrieveByVisibility(String question, UUID brainId, SourceVisibility visibility) {
+    private RetrievalResult retrieveByVisibility(String question,
+                                                 UUID brainId,
+                                                 SourceVisibility visibility,
+                                                 boolean includeBlockedSources) {
         if (question == null || question.isBlank()) {
             return RetrievalResult.empty();
         }
@@ -114,10 +117,13 @@ public class RetrievalService {
         float[] questionEmbedding = embeddingService.embed(expandedQuestion);
         String vectorLiteral = EmbeddingService.toVectorLiteral(questionEmbedding);
 
-        List<ChunkSearchResult> vectorHits = chunkRepository.searchByVector(
-                vectorLiteral, candidatePool, brainId, visibility == null ? null : visibility.name());
-        List<ChunkSearchResult> keywordHits = chunkRepository.searchByKeyword(
-                toOrQuery(expandedQuestion), candidatePool, brainId, visibility == null ? null : visibility.name());
+        String visibilityName = visibility == null ? null : visibility.name();
+        List<ChunkSearchResult> vectorHits = includeBlockedSources
+                ? chunkRepository.searchByVectorAdmin(vectorLiteral, candidatePool, brainId, visibilityName)
+                : chunkRepository.searchByVector(vectorLiteral, candidatePool, brainId, visibilityName);
+        List<ChunkSearchResult> keywordHits = includeBlockedSources
+                ? chunkRepository.searchByKeywordAdmin(toOrQuery(expandedQuestion), candidatePool, brainId, visibilityName)
+                : chunkRepository.searchByKeyword(toOrQuery(expandedQuestion), candidatePool, brainId, visibilityName);
 
         Map<UUID, MutableHit> merged = new HashMap<>();
         for (ChunkSearchResult hit : vectorHits) {
