@@ -17,18 +17,20 @@ import java.util.UUID;
  *
  * <p><b>Phase 6 scope (collect-only seam):</b> the corpus retrieval is unchanged
  * and is NOT executed here — {@code AskService} still calls
- * {@code retrievalService.retrieve(question)} directly. This planner only adds the
- * SIDE indexes (page guides + source links); the collected {@link PlannedEvidence}
- * is logged by the caller and otherwise discarded. The prompt, model, validator,
- * and response are unchanged. Phase 8 consumes the collected evidence.
+ * {@code retrievalService.retrieve(question)} directly. This planner adds the
+ * SIDE indexes (page guides + source links), and the collected
+ * {@link PlannedEvidence} is now consumed by {@code AskService} for prompt
+ * guidance plus response/tracing chrome. Phase 8 is where the side-evidence
+ * becomes fully first-class in the retrieval contract.
  *
  * <p><b>Minimal by design:</b> {@link RetrievalPlan} carries only the index set —
  * weights and page-boost (spec §7.4) are deferred to Phase 7.
  *
  * <p><b>Phase 7:</b> {@code collect} now returns the side-evidence already
  * authority-ordered via {@link AuthorityFilterService#order} (links
- * PRIMARY→SECONDARY→BACKGROUND, page-guide order preserved). This is still an
- * INERT seam — the caller logs it and otherwise discards it until Phase 8.
+ * PRIMARY→SECONDARY→BACKGROUND, page-guide order preserved). The caller uses
+ * that ordered evidence immediately for prompt assembly and response/tracing
+ * context, while Phase 8 broadens the contract around it.
  */
 @Service
 public class RetrievalPlannerService {
@@ -91,7 +93,7 @@ public class RetrievalPlannerService {
                 ? sourceLinkService.match(brainId, question, surface)
                 : List.<BrainSourceLink>of();
         // Phase 7: tier + order the collected side-evidence (links PRIMARY-first)
-        // so Phase 8 can emit it trust-first. INERT — same membership, only order.
+        // so AskService can inject it trust-first into prompt guidance and tracing.
         return authorityFilterService.order(new PlannedEvidence(pageGuides, links));
     }
 }

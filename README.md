@@ -81,6 +81,7 @@ For a registered brain, pass `?brain=<slug>` to admin document endpoints.
 ```bash
 curl -X POST http://localhost:8091/api/ai/generic/ask \
   -H "Content-Type: application/json" \
+  -H "X-Admin-Api-Key: $ADMIN_API_KEY" \
   -d '{
     "sessionId": "local-test",
     "question": "What does the uploaded source say about renewals?",
