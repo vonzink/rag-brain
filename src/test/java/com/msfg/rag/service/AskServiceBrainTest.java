@@ -73,7 +73,7 @@ class AskServiceBrainTest {
         when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
         // Insufficient evidence → short refusal path: still saves conversation,
         // message, sources, and records the audit row — all the writers we care about.
-        when(retrieval.retrieve(anyString(), any())).thenReturn(RetrievalResult.empty());
+        when(retrieval.retrieve(anyString(), any(), any())).thenReturn(RetrievalResult.empty());
         when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
         when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));

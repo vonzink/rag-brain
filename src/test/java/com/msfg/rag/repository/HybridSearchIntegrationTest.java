@@ -3,6 +3,8 @@ package com.msfg.rag.repository;
 import com.msfg.rag.domain.DocumentChunk;
 import com.msfg.rag.domain.MortgageDocument;
 import com.msfg.rag.domain.SourceType;
+import com.msfg.rag.domain.SourceTrustLevel;
+import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.service.ingestion.EmbeddingService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +61,7 @@ class HybridSearchIntegrationTest {
         chunkRepository.deleteAll();
         documentRepository.deleteAll();
 
-        activeDoc = saveDocument("Fannie Mae Selling Guide", true, null);
+        activeDoc = saveDocument("Fannie Mae Selling Guide", true, null, SourceVisibility.PUBLIC, SourceTrustLevel.APPROVED);
 
         saveChunk(activeDoc, 0,
                 "Gift funds may be used for down payment and closing costs on a "
@@ -71,14 +73,14 @@ class HybridSearchIntegrationTest {
                 unitVector(1));
 
         // Inactive document — its chunks must never be retrieved.
-        MortgageDocument inactiveDoc = saveDocument("Old Guide", false, null);
+        MortgageDocument inactiveDoc = saveDocument("Old Guide", false, null, SourceVisibility.PUBLIC, SourceTrustLevel.APPROVED);
         saveChunk(inactiveDoc, 0,
                 "Gift funds were previously restricted under the old guideline.",
                 unitVector(0));
 
         // Expired document — also excluded.
         MortgageDocument expiredDoc = saveDocument("Expired Overlay", true,
-                LocalDate.now().minusDays(1));
+                LocalDate.now().minusDays(1), SourceVisibility.PUBLIC, SourceTrustLevel.APPROVED);
         saveChunk(expiredDoc, 0,
                 "Gift funds guidance from an expired overlay document.",
                 unitVector(0));
@@ -86,7 +88,8 @@ class HybridSearchIntegrationTest {
 
     @Test
     void keywordSearchFindsMatchingChunk() {
-        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("gift funds", 10, TestBrains.DEFAULT_ID);
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword(
+                "gift funds", 10, TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC.name());
 
         assertFalse(results.isEmpty());
         assertTrue(results.getFirst().getContent().contains("Gift funds may be used"));
@@ -94,7 +97,8 @@ class HybridSearchIntegrationTest {
 
     @Test
     void keywordSearchExcludesInactiveAndExpiredDocuments() {
-        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("gift funds", 10, TestBrains.DEFAULT_ID);
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword(
+                "gift funds", 10, TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC.name());
 
         assertEquals(1, results.size(), "Only the active, unexpired document should match");
         assertEquals("Fannie Mae Selling Guide", results.getFirst().getSourceName());
@@ -104,7 +108,8 @@ class HybridSearchIntegrationTest {
     void vectorSearchRanksClosestEmbeddingFirst() {
         // Query with the exact embedding of chunk 0 -> cosine similarity 1.0.
         String query = EmbeddingService.toVectorLiteral(unitVector(0));
-        List<ChunkSearchResult> results = chunkRepository.searchByVector(query, 10, TestBrains.DEFAULT_ID);
+        List<ChunkSearchResult> results = chunkRepository.searchByVector(
+                query, 10, TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC.name());
 
         assertFalse(results.isEmpty());
         assertTrue(results.getFirst().getContent().contains("Gift funds may be used"));
@@ -114,7 +119,8 @@ class HybridSearchIntegrationTest {
     @Test
     void vectorSearchExcludesInactiveAndExpiredDocuments() {
         String query = EmbeddingService.toVectorLiteral(unitVector(0));
-        List<ChunkSearchResult> results = chunkRepository.searchByVector(query, 10, TestBrains.DEFAULT_ID);
+        List<ChunkSearchResult> results = chunkRepository.searchByVector(
+                query, 10, TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC.name());
 
         assertTrue(results.stream()
                 .allMatch(r -> r.getSourceName().equals("Fannie Mae Selling Guide")));
@@ -122,7 +128,8 @@ class HybridSearchIntegrationTest {
 
     @Test
     void keywordSearchReturnsCitationMetadata() {
-        List<ChunkSearchResult> results = chunkRepository.searchByKeyword("overtime income", 10, TestBrains.DEFAULT_ID);
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword(
+                "overtime income", 10, TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC.name());
 
         assertFalse(results.isEmpty());
         ChunkSearchResult hit = results.getFirst();
@@ -161,28 +168,71 @@ class HybridSearchIntegrationTest {
 
         // Keyword search scoped to the OTHER brain returns ONLY its chunk, never
         // the default-brain "gift funds" chunk.
-        List<ChunkSearchResult> otherHits = chunkRepository.searchByKeyword("gift funds", 10, otherBrain);
+        List<ChunkSearchResult> otherHits = chunkRepository.searchByKeyword(
+                "gift funds", 10, otherBrain, SourceVisibility.PUBLIC.name());
         assertEquals(1, otherHits.size(), "other-brain search must see only the other-brain chunk");
         assertEquals(otherChunkId, otherHits.getFirst().getChunkId());
         assertEquals("Other Brain Source", otherHits.getFirst().getSourceName());
 
         // Keyword search scoped to the DEFAULT brain never returns the other
         // brain's chunk.
-        List<ChunkSearchResult> defaultHits = chunkRepository.searchByKeyword("gift funds", 10, TestBrains.DEFAULT_ID);
+        List<ChunkSearchResult> defaultHits = chunkRepository.searchByKeyword(
+                "gift funds", 10, TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC.name());
         assertTrue(defaultHits.stream().noneMatch(h -> h.getChunkId().equals(otherChunkId)),
                 "default-brain search must not leak the other-brain chunk");
         assertEquals("Fannie Mae Selling Guide", defaultHits.getFirst().getSourceName());
     }
 
+    @Test
+    void publicKeywordSearchExcludesInternalAndBlockedDocuments() {
+        MortgageDocument internalDoc = saveDocument("Internal Guide", true, null,
+                SourceVisibility.INTERNAL, SourceTrustLevel.APPROVED);
+        saveChunk(internalDoc, 0, "Gift funds internal policy details.", unitVector(0));
+
+        MortgageDocument blockedDoc = saveDocument("Blocked Guide", true, null,
+                SourceVisibility.PUBLIC, SourceTrustLevel.BLOCKED);
+        saveChunk(blockedDoc, 0, "Gift funds blocked policy details.", unitVector(0));
+
+        List<ChunkSearchResult> results = chunkRepository.searchByKeyword(
+                "gift funds", 10, TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC.name());
+
+        assertTrue(results.stream().anyMatch(r -> r.getSourceName().equals("Fannie Mae Selling Guide")));
+        assertTrue(results.stream().noneMatch(r -> r.getSourceName().equals("Internal Guide")));
+        assertTrue(results.stream().noneMatch(r -> r.getSourceName().equals("Blocked Guide")));
+    }
+
+    @Test
+    void publicVectorSearchExcludesInternalAndBlockedDocuments() {
+        MortgageDocument internalDoc = saveDocument("Internal Guide", true, null,
+                SourceVisibility.INTERNAL, SourceTrustLevel.APPROVED);
+        saveChunk(internalDoc, 0, "Gift funds internal policy details.", unitVector(0));
+
+        MortgageDocument blockedDoc = saveDocument("Blocked Guide", true, null,
+                SourceVisibility.PUBLIC, SourceTrustLevel.BLOCKED);
+        saveChunk(blockedDoc, 0, "Gift funds blocked policy details.", unitVector(0));
+
+        String query = EmbeddingService.toVectorLiteral(unitVector(0));
+        List<ChunkSearchResult> results = chunkRepository.searchByVector(
+                query, 10, TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC.name());
+
+        assertTrue(results.stream().anyMatch(r -> r.getSourceName().equals("Fannie Mae Selling Guide")));
+        assertTrue(results.stream().noneMatch(r -> r.getSourceName().equals("Internal Guide")));
+        assertTrue(results.stream().noneMatch(r -> r.getSourceName().equals("Blocked Guide")));
+    }
+
     // ------------------------------------------------------------------
 
     private MortgageDocument saveDocument(String sourceName, boolean active,
-                                          LocalDate expirationDate) {
+                                          LocalDate expirationDate,
+                                          SourceVisibility visibility,
+                                          SourceTrustLevel trustLevel) {
         MortgageDocument doc = new MortgageDocument();
         doc.setBrainId(TestBrains.DEFAULT_ID);
         doc.setTitle(sourceName + " 2026");
         doc.setSourceName(sourceName);
         doc.setSourceType(SourceType.AGENCY_GUIDELINE);
+        doc.setVisibility(visibility);
+        doc.setTrustLevel(trustLevel);
         doc.setFileName("selling-guide.pdf");
         doc.setEffectiveDate(LocalDate.now().minusMonths(6));
         doc.setExpirationDate(expirationDate);

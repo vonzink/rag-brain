@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.msfg.rag.dto.AskRequest;
 import com.msfg.rag.dto.AskResponse;
 import com.msfg.rag.dto.CitationDto;
+import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.domain.RagTrace;
 import com.msfg.rag.provider.AiResponse;
 import com.msfg.rag.repository.AnswerSourceRepository;
@@ -47,7 +48,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -82,7 +86,7 @@ class AskServiceTest {
         when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
 
         RetrievalService retrieval = mock(RetrievalService.class);
-        when(retrieval.retrieve(anyString(), any()))
+        when(retrieval.retrieve(anyString(), any(), any()))
                 .thenReturn(new RetrievalResult(chunks, 1.0, true));
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
@@ -122,7 +126,7 @@ class AskServiceTest {
         when(classifier.classify(anyString(), any())).thenReturn(category);
 
         RetrievalService retrieval = mock(RetrievalService.class);
-        when(retrieval.retrieve(anyString(), any())).thenReturn(RetrievalResult.empty());
+        when(retrieval.retrieve(anyString(), any(), any())).thenReturn(RetrievalResult.empty());
 
         PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
         when(promptBuilder.build(anyString(), anyList(), any())).thenReturn("PROMPT");
@@ -243,6 +247,58 @@ class AskServiceTest {
         assertEquals(2, response.citations().size(), "omitted citations must be backfilled");
         assertEquals("PMI is private mortgage insurance that may be required on conventional loans.",
                 response.answer());
+    }
+
+    @Test
+    void askUsesExplicitVisibilityForRetrieval() {
+        QuestionClassifierService classifier = mock(QuestionClassifierService.class);
+        when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
+
+        RetrievalService retrieval = mock(RetrievalService.class);
+        RetrievalResult retrievalResult = new RetrievalResult(List.of(
+                chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1))
+        ), 1.0, true);
+        when(retrieval.retrieve(anyString(), any(), any())).thenReturn(retrievalResult);
+
+        PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
+        when(promptBuilder.build(anyString(), anyList(), any())).thenReturn("PROMPT");
+        when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
+
+        ModelRouterService router = mock(ModelRouterService.class);
+        String groundedJson = """
+                {"answer":"PMI is mortgage insurance.",
+                 "citations":[],
+                 "confidence":0.85,
+                 "human_escalation_required":false,
+                 "disclaimer":"d"}""";
+        AiResponse aiResponse = new AiResponse(groundedJson, "anthropic", "claude", 10, 10);
+        when(router.generate(any(), any()))
+                .thenReturn(new ModelRouterService.RoutedResponse(aiResponse, false));
+
+        AuditLogService audit = mock(AuditLogService.class);
+
+        ConversationRepository conversations = mock(ConversationRepository.class);
+        when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        MessageRepository messages = mock(MessageRepository.class);
+        when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
+        when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        IntentRouterService intentRouter = mock(IntentRouterService.class);
+        when(intentRouter.route(anyString(), any(), any())).thenReturn(Intent.GUIDELINE_QUESTION);
+        RetrievalPlannerServiceMocks plannerMocks = plannerMocks();
+        VocabularyService vocabulary = mock(VocabularyService.class);
+        when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
+        RagTraceService trace = traceService();
+
+        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+                new AnswerValidationService(TestPacks.registry()), audit,
+                conversations, messages, sources, new ObjectMapper(),
+                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+
+        service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
+
+        verify(retrieval).retrieve(eq("What is PMI?"), eq(TestBrains.DEFAULT_ID), same(SourceVisibility.PUBLIC));
     }
 
     @Test

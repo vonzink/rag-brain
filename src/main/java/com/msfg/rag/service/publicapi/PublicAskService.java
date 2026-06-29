@@ -2,6 +2,7 @@ package com.msfg.rag.service.publicapi;
 
 import com.msfg.rag.domain.Brain;
 import com.msfg.rag.domain.ResponseType;
+import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.dto.AskRequest;
 import com.msfg.rag.dto.AskResponse;
 import com.msfg.rag.dto.PublicAskRequest;
@@ -36,7 +37,7 @@ public class PublicAskService {
         Brain brain = brains.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown brain: " + slug));
         access.validate(brain.getId(), token, origin);
-        String surface = req.surface() == null || req.surface().isBlank() ? "PUBLIC" : req.surface();
+        String surface = SourceVisibility.PUBLIC.name();
         ClarificationDecision decision = clarification.decide(
                 brain.getId(), req.message(), surface, req.facts() == null ? Map.of() : req.facts());
         if (decision.responseType() == ResponseType.CLARIFY) {
@@ -44,10 +45,10 @@ public class PublicAskService {
                     decision.missingFacts(), List.of(), List.of(), 0.0, null, null, null);
         }
         if (decision.responseType() == ResponseType.NAVIGATE) {
-            AskResponse answer = askService.ask(toAskRequest(req, surface), brain.getId());
+            AskResponse answer = askService.ask(toAskRequest(req, surface), brain.getId(), SourceVisibility.PUBLIC);
             return mapAnswer("NAVIGATE", answer);
         }
-        AskResponse answer = askService.ask(toAskRequest(req, surface), brain.getId());
+        AskResponse answer = askService.ask(toAskRequest(req, surface), brain.getId(), SourceVisibility.PUBLIC);
         return mapAnswer(answer.humanEscalationRequired() ? "ESCALATE" : "ANSWER", answer);
     }
 

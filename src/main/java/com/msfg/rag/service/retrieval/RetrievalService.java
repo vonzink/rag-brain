@@ -3,6 +3,7 @@ package com.msfg.rag.service.retrieval;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.msfg.rag.config.RagProperties;
+import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.pack.BrainPackBundle;
 import com.msfg.rag.pack.CompiledProgram;
 import com.msfg.rag.pack.DomainPackRegistry;
@@ -68,6 +69,11 @@ public class RetrievalService {
 
     @Transactional(readOnly = true)
     public RetrievalResult retrieve(String question, UUID brainId) {
+        return retrieve(question, brainId, SourceVisibility.PUBLIC);
+    }
+
+    @Transactional(readOnly = true)
+    public RetrievalResult retrieve(String question, UUID brainId, SourceVisibility visibility) {
         if (question == null || question.isBlank()) {
             return RetrievalResult.empty();
         }
@@ -94,9 +100,10 @@ public class RetrievalService {
         float[] questionEmbedding = embeddingService.embed(expandedQuestion);
         String vectorLiteral = EmbeddingService.toVectorLiteral(questionEmbedding);
 
-        List<ChunkSearchResult> vectorHits = chunkRepository.searchByVector(vectorLiteral, candidatePool, brainId);
+        List<ChunkSearchResult> vectorHits = chunkRepository.searchByVector(
+                vectorLiteral, candidatePool, brainId, visibility.name());
         List<ChunkSearchResult> keywordHits = chunkRepository.searchByKeyword(
-                toOrQuery(expandedQuestion), candidatePool, brainId);
+                toOrQuery(expandedQuestion), candidatePool, brainId, visibility.name());
 
         Map<UUID, MutableHit> merged = new HashMap<>();
         for (ChunkSearchResult hit : vectorHits) {

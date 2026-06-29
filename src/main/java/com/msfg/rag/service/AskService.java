@@ -6,6 +6,7 @@ import com.msfg.rag.pack.DomainPack;
 import com.msfg.rag.pack.DomainPackRegistry;
 import com.msfg.rag.domain.Conversation;
 import com.msfg.rag.domain.Message;
+import com.msfg.rag.domain.SourceVisibility;
 import com.msfg.rag.dto.AskRequest;
 import com.msfg.rag.dto.AskResponse;
 import com.msfg.rag.dto.CitationDto;
@@ -107,6 +108,11 @@ public class AskService {
 
     @Transactional
     public AskResponse ask(AskRequest request, UUID brainId) {
+        return ask(request, brainId, SourceVisibility.PUBLIC);
+    }
+
+    @Transactional
+    public AskResponse ask(AskRequest request, UUID brainId, SourceVisibility visibility) {
         Conversation conversation = resolveConversation(request, brainId);
         saveMessage(conversation, Message.ROLE_USER, request.question(), null);
 
@@ -129,7 +135,7 @@ public class AskService {
         String rewrittenQuestion = vocabularyService.previewExpansion(brainId, request.question());
 
         // 1. Retrieve approved source context.
-        RetrievalResult retrieval = retrievalService.retrieve(request.question(), brainId);
+        RetrievalResult retrieval = retrievalService.retrieve(request.question(), brainId, visibility);
 
         // 2. Refuse early when there is no reliable source material.
         if (!retrieval.sufficientEvidence()) {
