@@ -91,6 +91,33 @@ curl -X POST http://localhost:8091/api/ai/generic/ask \
 
 The response includes `answer`, `citations`, confidence/escalation flags, optional `recommendedPage`, `links`, `nextAction`, and `traceId`. Query and ingestion flows require `OPENAI_API_KEY` because embeddings are generated with OpenAI by default. The API and dashboard can still boot without AI keys so admin setup is possible first.
 
+## Public Website Assistant
+
+Public website calls use a per-brain public token, not `ADMIN_API_KEY`.
+
+1. Open the dashboard.
+2. Go to Personality.
+3. Add allowed domains for the active brain.
+4. Rotate a public token and store it in the website environment.
+5. Test with:
+
+```bash
+curl -X POST http://localhost:8091/api/ai/public/generic/ask \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:5174" \
+  -H "X-Public-Brain-Token: $PUBLIC_BRAIN_TOKEN" \
+  -d '{
+    "sessionId": "hero-test",
+    "message": "What can you help me with?",
+    "pageRoute": "/",
+    "surface": "PUBLIC",
+    "facts": {}
+  }'
+```
+
+Public requests only retrieve `PUBLIC` sources. Internal or secure sources are filtered before prompt assembly.
+See [docs/public-assistant.md](docs/public-assistant.md) for the full request/response contract.
+
 Pipeline:
 
 ```text
