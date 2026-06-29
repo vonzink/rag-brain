@@ -2,9 +2,11 @@ package com.msfg.rag.controller;
 
 import com.msfg.rag.dto.BrainProfileDto;
 import com.msfg.rag.dto.BrainProfileRequest;
+import com.msfg.rag.service.publicapi.PublicAccessService;
 import com.msfg.rag.service.profile.BrainProfileService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,9 +19,11 @@ import java.util.UUID;
 public class AdminBrainProfileController {
 
     private final BrainProfileService service;
+    private final PublicAccessService publicAccessService;
 
-    public AdminBrainProfileController(BrainProfileService service) {
+    public AdminBrainProfileController(BrainProfileService service, PublicAccessService publicAccessService) {
         this.service = service;
+        this.publicAccessService = publicAccessService;
     }
 
     @GetMapping
@@ -36,9 +40,16 @@ public class AdminBrainProfileController {
         return BrainProfileDto.from(service.update(brainId, req));
     }
 
+    @PostMapping("/public-token")
+    public PublicTokenDto rotatePublicToken(@PathVariable UUID brainId) {
+        return new PublicTokenDto(publicAccessService.rotateToken(brainId));
+    }
+
     private static void validate(BrainProfileRequest req) {
         if (req.confidenceTarget() < 0.0 || req.confidenceTarget() > 1.0) {
             throw new IllegalArgumentException("confidenceTarget must be between 0 and 1");
         }
     }
+
+    public record PublicTokenDto(String token) {}
 }

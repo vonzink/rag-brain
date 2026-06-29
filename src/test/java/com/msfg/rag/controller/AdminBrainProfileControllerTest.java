@@ -3,6 +3,7 @@ package com.msfg.rag.controller;
 import com.msfg.rag.domain.BrainMode;
 import com.msfg.rag.domain.BrainProfile;
 import com.msfg.rag.dto.BrainProfileRequest;
+import com.msfg.rag.service.publicapi.PublicAccessService;
 import com.msfg.rag.service.profile.BrainProfileService;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +19,8 @@ import static org.mockito.Mockito.when;
 class AdminBrainProfileControllerTest {
 
     private final BrainProfileService service = mock(BrainProfileService.class);
-    private final AdminBrainProfileController controller = new AdminBrainProfileController(service);
+    private final PublicAccessService access = mock(PublicAccessService.class);
+    private final AdminBrainProfileController controller = new AdminBrainProfileController(service, access);
 
     private BrainProfile profile(UUID brainId) {
         BrainProfile p = new BrainProfile();
@@ -89,5 +91,14 @@ class AdminBrainProfileControllerTest {
         controller.put(brainId, req);
 
         verify(service).update(brainId, req);
+    }
+
+    @Test
+    void rotatePublicTokenReturnsPlainTokenOnce() {
+        UUID brainId = UUID.randomUUID();
+        when(access.rotateToken(brainId)).thenReturn("rb_pub_secret");
+        AdminBrainProfileController c = new AdminBrainProfileController(service, access);
+
+        assertEquals("rb_pub_secret", c.rotatePublicToken(brainId).token());
     }
 }
