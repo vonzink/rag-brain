@@ -5,6 +5,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.web.client.RestClient;
 
 /**
  * Adapter for any provider that speaks the OpenAI chat-completions dialect
@@ -19,8 +20,19 @@ public class OpenAiCompatibleProvider implements AiModelProvider {
     private final String defaultModel;
     private final OpenAiChatModel chatModel;
 
+    /**
+     * Backwards-compatible constructor (no explicit timeouts). Prefer the
+     * {@link RestClient.Builder} overload in production so the client has
+     * connect/read timeouts; this no-timeout form is retained for tests.
+     */
     public OpenAiCompatibleProvider(String providerName, String baseUrl,
                                     String apiKey, String defaultModel) {
+        this(providerName, baseUrl, apiKey, defaultModel, RestClient.builder());
+    }
+
+    public OpenAiCompatibleProvider(String providerName, String baseUrl,
+                                    String apiKey, String defaultModel,
+                                    RestClient.Builder restClientBuilder) {
         this.providerName = providerName;
         this.defaultModel = defaultModel;
         this.chatModel = OpenAiChatModel.builder()
@@ -32,6 +44,7 @@ public class OpenAiCompatibleProvider implements AiModelProvider {
                         // compat endpoint. /chat/completions resolves correctly against all
                         // three committed base URLs, including DeepSeek's primary path.
                         .completionsPath("/chat/completions")
+                        .restClientBuilder(restClientBuilder)
                         .build())
                 .build();
     }

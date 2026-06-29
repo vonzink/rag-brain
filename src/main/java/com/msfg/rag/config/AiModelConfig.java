@@ -23,6 +23,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AiModelConfig {
 
+    private final AiHttpClientFactory httpClientFactory;
+
+    public AiModelConfig(AiHttpClientFactory httpClientFactory) {
+        this.httpClientFactory = httpClientFactory;
+    }
+
     @Bean
     @ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${spring.ai.openai.api-key:}')")
     public OpenAiChatModel openAiChatModel(
@@ -58,7 +64,10 @@ public class AiModelConfig {
             @Value("${spring.ai.anthropic.api-key}") String apiKey,
             @Value("${spring.ai.anthropic.chat.options.model:claude-haiku-4-5}") String model) {
         return AnthropicChatModel.builder()
-                .anthropicApi(AnthropicApi.builder().apiKey(apiKey).build())
+                .anthropicApi(AnthropicApi.builder()
+                        .apiKey(apiKey)
+                        .restClientBuilder(httpClientFactory.restClientBuilder())
+                        .build())
                 .defaultOptions(AnthropicChatOptions.builder()
                         .model(model)
                         .temperature(0.2)
@@ -68,6 +77,9 @@ public class AiModelConfig {
     }
 
     private OpenAiApi openAiApi(String apiKey) {
-        return OpenAiApi.builder().apiKey(apiKey).build();
+        return OpenAiApi.builder()
+                .apiKey(apiKey)
+                .restClientBuilder(httpClientFactory.restClientBuilder())
+                .build();
     }
 }

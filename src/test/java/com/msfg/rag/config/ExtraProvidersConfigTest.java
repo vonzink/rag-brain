@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ExtraProvidersConfigTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
+            .withBean(AiHttpClientFactory.class, () -> new AiHttpClientFactory(10_000, 60_000))
             .withUserConfiguration(ExtraProvidersConfig.class)
             .withPropertyValues(
                     "brain.providers.deepseek.base-url=https://api.deepseek.com",

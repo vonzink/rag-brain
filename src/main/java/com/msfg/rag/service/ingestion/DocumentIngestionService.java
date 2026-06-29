@@ -12,7 +12,8 @@ import com.msfg.rag.service.storage.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -44,24 +45,36 @@ public class DocumentIngestionService {
     private final MortgageDocumentRepository documentRepository;
     private final DocumentChunkRepository chunkRepository;
 
+    /**
+     * Explicit transaction boundaries (instead of method-level @Transactional) so
+     * the expensive text-extraction + embedding work runs OUTSIDE any transaction
+     * and only the short DB writes are transactional — no JDBC connection is held
+     * across the embedding API calls (which can sleep on rate-limit backoff).
+     */
+    private final TransactionTemplate txTemplate;
+
     public DocumentIngestionService(StorageService storageService,
                                     TextExtractionService textExtractionService,
                                     ChunkingService chunkingService,
                                     EmbeddingService embeddingService,
                                     MortgageDocumentRepository documentRepository,
-                                    DocumentChunkRepository chunkRepository) {
+                                    DocumentChunkRepository chunkRepository,
+                                    PlatformTransactionManager transactionManager) {
         this.storageService = storageService;
         this.textExtractionService = textExtractionService;
         this.chunkingService = chunkingService;
         this.embeddingService = embeddingService;
         this.documentRepository = documentRepository;
         this.chunkRepository = chunkRepository;
+        this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
     /**
-     * Ingests a new guideline document end to end.
+     * Ingests a new guideline document end to end. The blob is stored first, then
+     * text extraction/chunking/embedding runs with no open transaction, and the
+     * document + chunks are committed together in one short transaction. If
+     * anything fails, the stored blob is removed so no orphan file is left behind.
      */
-    @Transactional
     public MortgageDocument ingest(String fileName,
                                    byte[] fileBytes,
                                    String title,
@@ -75,61 +88,83 @@ public class DocumentIngestionService {
                                    UUID brainId) {
 
         String storageKey = storageService.store(fileName, new ByteArrayInputStream(fileBytes));
+        try {
+            MortgageDocument document = new MortgageDocument();
+            document.setBrainId(brainId);
+            document.setTitle(title);
+            document.setSourceName(sourceName);
+            document.setSourceType(sourceType);
+            document.setVisibility(visibility == null ? SourceVisibility.INTERNAL : visibility);
+            document.setTrustLevel(trustLevel == null ? SourceTrustLevel.APPROVED : trustLevel);
+            document.setFileName(fileName);
+            document.setS3Key(storageKey);
+            document.setDocumentVersion(documentVersion);
+            document.setContentSha256(Sha256.hex(fileBytes));
+            document.setEffectiveDate(effectiveDate);
+            document.setExpirationDate(expirationDate);
 
-        MortgageDocument document = new MortgageDocument();
-        document.setBrainId(brainId);
-        document.setTitle(title);
-        document.setSourceName(sourceName);
-        document.setSourceType(sourceType);
-        document.setVisibility(visibility == null ? SourceVisibility.INTERNAL : visibility);
-        document.setTrustLevel(trustLevel == null ? SourceTrustLevel.APPROVED : trustLevel);
-        document.setFileName(fileName);
-        document.setS3Key(storageKey);
-        document.setDocumentVersion(documentVersion);
-        document.setContentSha256(Sha256.hex(fileBytes));
-        document.setEffectiveDate(effectiveDate);
-        document.setExpirationDate(expirationDate);
-        document = documentRepository.save(document);
+            // Extract + chunk + embed OUTSIDE any transaction.
+            PreparedChunks prepared = prepareChunks(document, new ByteArrayInputStream(fileBytes));
 
-        int chunkCount = extractChunkAndEmbed(document, new ByteArrayInputStream(fileBytes));
-        log.info("Ingested document '{}' ({}): {} chunks", title, fileName, chunkCount);
-        return document;
+            MortgageDocument saved = txTemplate.execute(status -> {
+                MortgageDocument persisted = documentRepository.save(document);
+                int chunkCount = persistChunks(persisted, prepared);
+                log.info("Ingested document '{}' ({}): {} chunks", title, fileName, chunkCount);
+                return persisted;
+            });
+            return saved;
+        } catch (RuntimeException e) {
+            // Compensate: a committed document row must never outlive its blob, and
+            // a failed ingest must not leak the blob it just stored.
+            safeDeleteStorage(storageKey);
+            throw e;
+        }
     }
 
     /**
      * Re-runs extraction, chunking, and embedding for an existing document,
      * e.g. after chunking settings change or an embedding model upgrade.
+     * Embedding runs first (no transaction); the old chunks are swapped for the
+     * new ones in a single transaction, so a failure mid-reindex leaves the
+     * existing chunks intact rather than emptying the document.
      */
-    @Transactional
     public int reindex(UUID documentId) {
         MortgageDocument document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found: " + documentId));
 
-        chunkRepository.deleteByDocumentId(documentId);
+        PreparedChunks prepared;
         try (InputStream content = storageService.retrieve(document.getS3Key())) {
-            int chunkCount = extractChunkAndEmbed(document, content);
-            log.info("Reindexed document '{}': {} chunks", document.getTitle(), chunkCount);
-            return chunkCount;
+            prepared = prepareChunks(document, content);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read stored document for reindex: " + documentId, e);
         }
+
+        int chunkCount = txTemplate.execute(status -> {
+            chunkRepository.deleteByDocumentId(documentId);
+            return persistChunks(document, prepared);
+        });
+        log.info("Reindexed document '{}': {} chunks", document.getTitle(), chunkCount);
+        return chunkCount;
     }
 
-    @Transactional
     public void delete(UUID documentId) {
         MortgageDocument document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found: " + documentId));
-
-        chunkRepository.deleteByDocumentId(documentId);
         String storageKey = document.getS3Key();
-        if (storageKey != null) {
-            storageService.delete(storageKey);
-        }
-        documentRepository.delete(document);
+
+        // Delete the DB rows first and commit, THEN remove the blob. Deleting the
+        // blob before the commit would risk a surviving row pointing at a missing
+        // file if the transaction rolled back.
+        txTemplate.executeWithoutResult(status -> {
+            chunkRepository.deleteByDocumentId(documentId);
+            documentRepository.delete(document);
+        });
+        safeDeleteStorage(storageKey);
         log.info("Deleted document '{}' ({})", document.getTitle(), document.getFileName());
     }
 
-    private int extractChunkAndEmbed(MortgageDocument document, InputStream content) {
+    /** Text extraction, chunking, and embedding — performed with no open transaction. */
+    private PreparedChunks prepareChunks(MortgageDocument document, InputStream content) {
         String text = textExtractionService.extract(content, document.getFileName());
         if (text.isBlank()) {
             throw new IllegalStateException(
@@ -138,38 +173,63 @@ public class DocumentIngestionService {
         }
 
         List<TextChunk> textChunks = chunkingService.chunkHierarchical(text);
-        List<DocumentChunk> entities = new ArrayList<>(textChunks.size());
-        Map<Integer, DocumentChunk> parentByIndex = new HashMap<>();
-
-        for (TextChunk tc : textChunks) {
-            if (tc.type() != TextChunk.ChunkType.PARENT) {
-                continue;
-            }
-            DocumentChunk parent = toEntity(document, tc, null, null);
-            parentByIndex.put(tc.index(), chunkRepository.save(parent));
-        }
-
         List<TextChunk> childChunks = textChunks.stream()
                 .filter(tc -> tc.type() == TextChunk.ChunkType.CHILD)
                 .toList();
 
+        Map<Integer, float[]> embeddingByChildIndex = new HashMap<>();
         // Embed in batches to limit API request size.
         for (int start = 0; start < childChunks.size(); start += EMBEDDING_BATCH_SIZE) {
             List<TextChunk> batch = childChunks.subList(
                     start, Math.min(start + EMBEDDING_BATCH_SIZE, childChunks.size()));
             List<float[]> embeddings = embeddingService.embedBatch(
                     batch.stream().map(TextChunk::content).toList());
-
+            if (embeddings.size() != batch.size()) {
+                throw new IllegalStateException("Embedding provider returned " + embeddings.size()
+                        + " vectors for " + batch.size() + " chunks");
+            }
             for (int i = 0; i < batch.size(); i++) {
-                TextChunk tc = batch.get(i);
-                DocumentChunk entity = toEntity(document, tc, embeddings.get(i),
-                        tc.parentIndex() == null ? null : parentByIndex.get(tc.parentIndex()));
-                entities.add(entity);
+                embeddingByChildIndex.put(batch.get(i).index(), embeddings.get(i));
             }
         }
+        return new PreparedChunks(textChunks, embeddingByChildIndex);
+    }
 
-        chunkRepository.saveAll(entities);
-        return parentByIndex.size() + entities.size();
+    /** Persists parent + child chunks. MUST run inside a transaction. */
+    private int persistChunks(MortgageDocument document, PreparedChunks prepared) {
+        Map<Integer, DocumentChunk> parentByIndex = new HashMap<>();
+        for (TextChunk tc : prepared.textChunks()) {
+            if (tc.type() != TextChunk.ChunkType.PARENT) {
+                continue;
+            }
+            parentByIndex.put(tc.index(), chunkRepository.save(toEntity(document, tc, null, null)));
+        }
+
+        List<DocumentChunk> children = new ArrayList<>();
+        for (TextChunk tc : prepared.textChunks()) {
+            if (tc.type() != TextChunk.ChunkType.CHILD) {
+                continue;
+            }
+            DocumentChunk parent = tc.parentIndex() == null ? null : parentByIndex.get(tc.parentIndex());
+            children.add(toEntity(document, tc, prepared.childEmbeddings().get(tc.index()), parent));
+        }
+        chunkRepository.saveAll(children);
+        return parentByIndex.size() + children.size();
+    }
+
+    private void safeDeleteStorage(String storageKey) {
+        if (storageKey == null) {
+            return;
+        }
+        try {
+            storageService.delete(storageKey);
+        } catch (RuntimeException ex) {
+            log.warn("Failed to delete stored file '{}' during cleanup: {}", storageKey, ex.getMessage());
+        }
+    }
+
+    /** Text chunks plus the embedding for each child chunk, keyed by chunk index. */
+    private record PreparedChunks(List<TextChunk> textChunks, Map<Integer, float[]> childEmbeddings) {
     }
 
     private DocumentChunk toEntity(MortgageDocument document, TextChunk tc, float[] embedding,

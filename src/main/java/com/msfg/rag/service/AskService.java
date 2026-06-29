@@ -37,7 +37,6 @@ import com.msfg.rag.service.retrieval.VocabularyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -109,12 +108,16 @@ public class AskService {
         this.ragTraceService = ragTraceService;
     }
 
-    @Transactional
     public AskResponse ask(AskRequest request, UUID brainId) {
         return ask(request, brainId, SourceVisibility.PUBLIC);
     }
 
-    @Transactional
+    // NOTE: deliberately NOT @Transactional at the method level. This pipeline
+    // makes blocking external calls (embedding + answer model); a method-wide
+    // transaction would pin a JDBC connection across that I/O. Each persistence
+    // step runs in its own short transaction (repository defaults, plus the
+    // REQUIRES_NEW audit/trace writes). Provider failures are converted to a
+    // compliance escalation below rather than bubbling up as a 500.
     public AskResponse ask(AskRequest request, UUID brainId, SourceVisibility visibility) {
         Conversation conversation = resolveConversation(request, brainId);
         saveMessage(conversation, Message.ROLE_USER, request.question(), null);
@@ -137,8 +140,22 @@ public class AskService {
                 intent, request.pageRoute(), request.surface());
         String rewrittenQuestion = vocabularyService.previewExpansion(brainId, request.question());
 
-        // 1. Retrieve approved source context.
-        RetrievalResult retrieval = retrievalService.retrieve(request.question(), brainId, visibility);
+        // 1. Retrieve approved source context. A transient embedding/provider
+        //    error becomes a graceful escalation, not a 500. A genuine
+        //    misconfiguration ("not configured") still surfaces as 503.
+        RetrievalResult retrieval;
+        try {
+            retrieval = retrievalService.retrieve(request.question(), brainId, visibility);
+        } catch (RuntimeException e) {
+            if (isNotConfigured(e)) {
+                throw e;
+            }
+            log.error("Retrieval/embedding provider error for conversation {}: {}",
+                    conversation.getId(), e.getMessage());
+            return refuse(conversation, request, brainId, RetrievalResult.empty(), canned.escalation(),
+                    null, "retrieval provider error", rewrittenQuestion, intent, plan,
+                    PlannedEvidence.empty(), visibility);
+        }
 
         // 2. Refuse early when there is no reliable source material.
         if (!retrieval.sufficientEvidence()) {
@@ -149,10 +166,23 @@ public class AskService {
         PlannedEvidence sideEvidence = retrievalPlannerService.collect(
                 brainId, plan, request.question(), request.pageRoute(), request.surface());
 
-        // 3. Build the locked prompt and call the model (with fallback).
+        // 3. Build the locked prompt and call the model (with fallback). When the
+        //    answer provider (and its fallback) fail, return a compliance
+        //    escalation instead of surfacing a 500 to the visitor. A genuine
+        //    misconfiguration ("not configured") still surfaces as 503.
         String prompt = promptBuilderService.build(request.question(), retrieval.chunks(), brainId, sideEvidence);
-        ModelRouterService.RoutedResponse routed =
-                modelRouterService.generate(AiRequest.forGuidelineAnswer(prompt), brainId);
+        ModelRouterService.RoutedResponse routed;
+        try {
+            routed = modelRouterService.generate(AiRequest.forGuidelineAnswer(prompt), brainId);
+        } catch (RuntimeException e) {
+            if (isNotConfigured(e)) {
+                throw e;
+            }
+            log.error("Answer provider error for conversation {}: {}",
+                    conversation.getId(), e.getMessage());
+            return refuse(conversation, request, brainId, retrieval, canned.escalation(), prompt,
+                    "answer provider error", rewrittenQuestion, intent, plan, sideEvidence, visibility);
+        }
 
         // 4. Parse the model's JSON answer.
         ModelAnswer modelAnswer = parseModelAnswer(routed.response().content());
@@ -226,6 +256,17 @@ public class AskService {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * An operator misconfiguration (no provider/embedding key) is signalled with
+     * an IllegalStateException whose message contains "not configured"; those must
+     * surface as 503 (handled globally), not be masked as a routine escalation.
+     */
+    private static boolean isNotConfigured(Throwable e) {
+        return e instanceof IllegalStateException
+                && e.getMessage() != null
+                && e.getMessage().contains("not configured");
+    }
 
     private String categoryAnswer(QuestionCategory category, DomainPack.CannedAnswers canned) {
         return switch (category) {

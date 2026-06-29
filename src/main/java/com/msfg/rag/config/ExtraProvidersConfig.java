@@ -14,13 +14,20 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ExtraProvidersConfig {
 
+    private final AiHttpClientFactory httpClientFactory;
+
+    public ExtraProvidersConfig(AiHttpClientFactory httpClientFactory) {
+        this.httpClientFactory = httpClientFactory;
+    }
+
     @Bean
     @ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${brain.providers.deepseek.api-key:}')")
     public OpenAiCompatibleProvider deepSeekProvider(
             @Value("${brain.providers.deepseek.base-url}") String baseUrl,
             @Value("${brain.providers.deepseek.api-key}") String apiKey,
             @Value("${brain.providers.deepseek.model}") String model) {
-        return new OpenAiCompatibleProvider("deepseek", baseUrl, apiKey, model);
+        return new OpenAiCompatibleProvider("deepseek", baseUrl, apiKey, model,
+                httpClientFactory.restClientBuilder());
     }
 
     @Bean
@@ -29,7 +36,8 @@ public class ExtraProvidersConfig {
             @Value("${brain.providers.gemini.base-url}") String baseUrl,
             @Value("${brain.providers.gemini.api-key}") String apiKey,
             @Value("${brain.providers.gemini.model}") String model) {
-        return new OpenAiCompatibleProvider("gemini", baseUrl, apiKey, model);
+        return new OpenAiCompatibleProvider("gemini", baseUrl, apiKey, model,
+                httpClientFactory.restClientBuilder());
     }
 
     @Bean
@@ -38,7 +46,8 @@ public class ExtraProvidersConfig {
             @Value("${brain.providers.grok.base-url}") String baseUrl,
             @Value("${brain.providers.grok.api-key}") String apiKey,
             @Value("${brain.providers.grok.model}") String model) {
-        return new OpenAiCompatibleProvider("grok", baseUrl, apiKey, model);
+        return new OpenAiCompatibleProvider("grok", baseUrl, apiKey, model,
+                httpClientFactory.restClientBuilder());
     }
 
     @Bean
@@ -49,6 +58,7 @@ public class ExtraProvidersConfig {
             @Value("${brain.providers.local.model:}") String model) {
         // Local servers (Ollama/LM Studio/vLLM) usually ignore the key; OpenAiApi needs a non-blank one.
         String key = (apiKey == null || apiKey.isBlank()) ? "not-needed" : apiKey;
-        return new OpenAiCompatibleProvider("local", baseUrl, key, model);
+        return new OpenAiCompatibleProvider("local", baseUrl, key, model,
+                httpClientFactory.restClientBuilder());
     }
 }

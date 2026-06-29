@@ -84,6 +84,12 @@ management:
 # ------------------------------------------------------------
 msfg:
   rag:
+    # HTTP timeouts for outbound AI provider/embedding calls. Without these,
+    # a hung provider blocks the request thread indefinitely. read-timeout-ms
+    # must comfortably exceed normal completion latency.
+    ai:
+      connect-timeout-ms: ${AI_CONNECT_TIMEOUT_MS:10000}
+      read-timeout-ms: ${AI_READ_TIMEOUT_MS:60000}
     routing:
       default-provider: ${DEFAULT_AI_PROVIDER:anthropic}
       fallback-provider: ${FALLBACK_AI_PROVIDER:openai}

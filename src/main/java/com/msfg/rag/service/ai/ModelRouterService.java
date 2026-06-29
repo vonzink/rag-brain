@@ -1,5 +1,6 @@
 package com.msfg.rag.service.ai;
 
+import com.msfg.rag.config.AiHttpClientFactory;
 import com.msfg.rag.config.RagProperties;
 import com.msfg.rag.domain.Brain;
 import com.msfg.rag.provider.AiModelProvider;
@@ -43,6 +44,7 @@ public class ModelRouterService {
     private final RuntimeSettings settings;
     private final BrainRepository brainRepository;
     private final LocalEndpointValidator localEndpointValidator;
+    private final AiHttpClientFactory httpClientFactory;
     private final String localApiKey;
 
     /** Per-base-URL cache of providers bound to a brain's own local endpoint. */
@@ -51,6 +53,7 @@ public class ModelRouterService {
     public ModelRouterService(List<AiModelProvider> providerBeans, RagProperties properties,
                               RuntimeSettings settings, BrainRepository brainRepository,
                               LocalEndpointValidator localEndpointValidator,
+                              AiHttpClientFactory httpClientFactory,
                               @Value("${brain.providers.local.api-key:}") String localApiKey) {
         this.providers = providerBeans.stream()
                 .collect(Collectors.toMap(AiModelProvider::getProviderName, Function.identity()));
@@ -58,6 +61,7 @@ public class ModelRouterService {
         this.settings = settings;
         this.brainRepository = brainRepository;
         this.localEndpointValidator = localEndpointValidator;
+        this.httpClientFactory = httpClientFactory;
         // Local servers usually ignore the key; Spring AI still requires a non-blank one.
         this.localApiKey = (localApiKey == null || localApiKey.isBlank()) ? "not-needed" : localApiKey;
 
@@ -143,7 +147,8 @@ public class ModelRouterService {
     private AiModelProvider localProviderFor(String baseUrl) {
         return localProviderCache.computeIfAbsent(baseUrl, url -> {
             localEndpointValidator.validate(url);   // SSRF check at first use
-            return new OpenAiCompatibleProvider("local", url, localApiKey, "");
+            return new OpenAiCompatibleProvider("local", url, localApiKey, "",
+                    httpClientFactory.restClientBuilder());
         });
     }
 

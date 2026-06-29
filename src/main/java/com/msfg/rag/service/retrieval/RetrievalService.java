@@ -14,7 +14,6 @@ import com.msfg.rag.service.ingestion.EmbeddingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -67,22 +66,22 @@ public class RetrievalService {
         this.vocabularyService = vocabularyService;
     }
 
-    @Transactional(readOnly = true)
+    // NOTE: deliberately NOT @Transactional. This path calls the embedding API
+    // (and optionally the LLM reranker); wrapping it in a transaction would pin a
+    // JDBC connection across that external I/O. The two search queries run as
+    // independent autocommit reads, which is correct for read-only retrieval.
     public RetrievalResult retrieve(String question, UUID brainId) {
         return retrieve(question, brainId, SourceVisibility.PUBLIC);
     }
 
-    @Transactional(readOnly = true)
     public RetrievalResult retrieve(String question, UUID brainId, SourceVisibility visibility) {
         return retrieveByVisibility(question, brainId, visibility, false);
     }
 
-    @Transactional(readOnly = true)
     public RetrievalResult retrieveAdmin(String question, UUID brainId) {
         return retrieveAdmin(question, brainId, null);
     }
 
-    @Transactional(readOnly = true)
     public RetrievalResult retrieveAdmin(String question, UUID brainId, SourceVisibility visibility) {
         return retrieveByVisibility(question, brainId, visibility, true);
     }

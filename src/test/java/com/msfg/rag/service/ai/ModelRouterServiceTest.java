@@ -1,5 +1,6 @@
 package com.msfg.rag.service.ai;
 
+import com.msfg.rag.config.AiHttpClientFactory;
 import com.msfg.rag.config.RagProperties;
 import com.msfg.rag.domain.Brain;
 import com.msfg.rag.provider.AiModelProvider;
@@ -84,7 +85,7 @@ class ModelRouterServiceTest {
     private ModelRouterService router(List<AiModelProvider> providers, RagProperties props,
                                       RuntimeSettings settings, BrainRepository repo) {
         return new ModelRouterService(providers, props, settings, repo,
-                new LocalEndpointValidator(""), "test-local-key");
+                new LocalEndpointValidator(""), new AiHttpClientFactory(10_000, 60_000), "test-local-key");
     }
 
     // ------------------------------------------------------------------
@@ -422,6 +423,7 @@ class ModelRouterServiceTest {
                 defaultSettings("local"),
                 repo,
                 validator,
+                new AiHttpClientFactory(10_000, 60_000),
                 "test-local-key");
 
         try {
@@ -457,6 +459,7 @@ class ModelRouterServiceTest {
                 defaultSettings("local"),
                 repo,
                 validator,
+                new AiHttpClientFactory(10_000, 60_000),
                 "test-local-key");
 
         var routed = router.generate(AiRequest.forGuidelineAnswer("p"), BRAIN);
