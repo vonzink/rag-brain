@@ -46,6 +46,21 @@ class RateLimitFilterTest {
     }
 
     @Test
+    void usesSafeDefaultsWhenRateLimitPropertiesAreMissing() {
+        RagProperties missingRateLimit = new RagProperties(
+                new RagProperties.Routing("anthropic", "openai"),
+                new RagProperties.Retrieval(8, 3, 0.35, 0.65, 0.35, true, 24),
+                new RagProperties.Chunking(1000, 1200, 150),
+                new RagProperties.Storage("./data/documents"),
+                new RagProperties.Admin("k"),
+                null);
+
+        RateLimitFilter filter = new RateLimitFilter(missingRateLimit, "mortgage", false, 1);
+
+        assertFalse(filter.shouldNotFilter(get("/api/connect/v1/brains/generic/ask")));
+    }
+
+    @Test
     void percentEncodedAskPathIsStillRateLimited() {
         RateLimitFilter filter = new RateLimitFilter(props, "mortgage", false, 1);
         assertFalse(filter.shouldNotFilter(get("/api/ai/mortgage/%61sk")),

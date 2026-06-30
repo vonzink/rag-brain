@@ -58,9 +58,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
                            @Value("${brain.slug:generic}") String slug,
                            @Value("${msfg.rag.rate-limit.trust-forwarded-for:false}") boolean trustForwardedFor,
                            @Value("${msfg.rag.rate-limit.trusted-proxy-count:1}") int trustedProxyCount) {
-        this.publicRequestsPerMinute = Math.max(1, properties.rateLimit().requestsPerMinute());
-        this.connectorRequestsPerMinute = Math.max(1, properties.rateLimit().connectorRequestsPerMinute());
-        this.adminRequestsPerMinute = Math.max(1, properties.rateLimit().adminRequestsPerMinute());
+        RagProperties.RateLimit limits = properties.rateLimit() == null
+                ? new RagProperties.RateLimit(10)
+                : properties.rateLimit();
+        this.publicRequestsPerMinute = Math.max(1, limits.requestsPerMinute());
+        this.connectorRequestsPerMinute = Math.max(1, limits.connectorRequestsPerMinute());
+        this.adminRequestsPerMinute = Math.max(1, limits.adminRequestsPerMinute());
         this.askPaths = Set.of(
                 "/api/ai/" + slug + "/ask",
                 "/api/ai/public/" + slug + "/ask");
