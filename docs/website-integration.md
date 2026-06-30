@@ -1,9 +1,9 @@
-# MSFG Mortgage Brain — Website Integration Contract
+# rag-brain Website Integration Contract
 
 For the team/session building the public website chat widget.
 The brain is a REST API; the website only needs two endpoints.
 
-Base URL (local dev): `http://localhost:8080`
+Base URL (local dev): `http://localhost:8091`
 Base URL (production): TBD — will be `https://api.<domain>` behind Nginx on EC2.
 
 ---
@@ -131,6 +131,19 @@ The dashboard has a **Connect** screen that walks through the whole setup:
 6. **Verify** — send a live test question through the public endpoint to confirm it works.
 
 The public token is shown once and stored only as a hash; regenerating it invalidates the old one.
+
+---
+
+## Website tokens vs connector tokens
+
+Website embeds use public brain tokens (`rb_pub_...`) through `X-Public-Brain-Token`.
+Do not use connector tokens in browser code.
+
+Connector clients use bearer tokens (`rb_conn_...`) for server apps, agent tools,
+and peer `rag-brain` instances. They call `/.well-known/rag-brain.json`,
+`/api/connect/v1/**`, or `/mcp/tools`, and they are managed from the dashboard
+**Connectors** screen. Connector tokens are also shown once and stored only as
+hashes.
 
 ---
 

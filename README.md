@@ -122,6 +122,52 @@ curl -X POST http://localhost:8091/api/ai/public/generic/ask \
 Public requests only retrieve `PUBLIC` sources. Internal or secure sources are filtered before prompt assembly.
 See [docs/public-assistant.md](docs/public-assistant.md) for the full request/response contract.
 
+## Connector Clients
+
+Connector clients are for server apps, agent tools, and peer `rag-brain` instances. They use `rb_conn_...` bearer tokens and are intentionally separate from website public tokens (`rb_pub_...`) and `ADMIN_API_KEY`.
+
+Create and rotate connector clients from the dashboard **Connectors** screen. Choose only the scopes the client needs:
+
+- `brains:list`
+- `brain:read`
+- `readiness:read`
+- `ask:public`
+- `retrieve:public`
+- `citations:read`
+
+Useful endpoints:
+
+```bash
+curl http://localhost:8091/.well-known/rag-brain.json
+```
+
+```bash
+curl -X POST http://localhost:8091/api/connect/v1/brains/generic/ask \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RAG_BRAIN_CONNECTOR_TOKEN" \
+  -d '{
+    "sessionId": "connector-test",
+    "message": "What can you help me with?",
+    "pageRoute": "/",
+    "facts": {}
+  }'
+```
+
+```bash
+curl http://localhost:8091/mcp/tools \
+  -H "Authorization: Bearer $RAG_BRAIN_CONNECTOR_TOKEN"
+```
+
+The MCP surface is a lightweight HTTP facade for tool-style callers:
+
+- `GET /mcp/tools` lists available tool definitions.
+- `POST /mcp/tools/rag_brain_list_brains`
+- `POST /mcp/tools/rag_brain_readiness`
+- `POST /mcp/tools/rag_brain_ask`
+- `POST /mcp/tools/rag_brain_retrieve`
+
+Federation endpoints under `/api/connect/v1` let another `rag-brain` discover active brains, inspect readiness, ask public-safe questions, and retrieve public evidence chunks. Connector calls never expose admin settings, private source paths, token hashes, trace internals, or non-public source content.
+
 Pipeline:
 
 ```text
@@ -148,6 +194,8 @@ The dashboard supports:
 - Page Guides: manage recommended pages and internal links.
 - Test Console: run full ask or retrieval-only tests.
 - Audit: inspect answers and retrieved sources.
+- Connect: publish a website widget and verify public access.
+- Connectors: create scoped agent/server/peer-brain connectors, rotate tokens, copy snippets, and inspect recent connector events.
 
 ## Example Mortgage Pack
 
@@ -169,7 +217,10 @@ Upload a curated subset through the dashboard Corpus screen rather than syncing 
 
 ```bash
 ./gradlew test
-cd dashboard && npm run build
+cd dashboard
+npm run check
+npm run test -- --run
+npm run build
 ```
 
 Integration tests use Testcontainers and require Docker.
