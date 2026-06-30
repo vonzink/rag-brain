@@ -31,7 +31,7 @@ public class BrainConnectorClient {
     @Column(name = "brain_id")
     private UUID brainId;
 
-    @Column(name = "token_hash", nullable = false, length = 128, unique = true)
+    @Column(name = "token_hash", length = 128, unique = true)
     private String tokenHash;
 
     @JdbcTypeCode(SqlTypes.JSON)

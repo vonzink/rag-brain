@@ -3,7 +3,7 @@ CREATE TABLE brain_connector_clients (
     name VARCHAR(160) NOT NULL,
     type VARCHAR(40) NOT NULL,
     brain_id UUID REFERENCES brains(id),
-    token_hash VARCHAR(128) NOT NULL UNIQUE,
+    token_hash VARCHAR(128) UNIQUE,
     scopes JSONB NOT NULL DEFAULT '[]'::jsonb,
     allowed_origins JSONB NOT NULL DEFAULT '[]'::jsonb,
     allowed_peer_hosts JSONB NOT NULL DEFAULT '[]'::jsonb,
