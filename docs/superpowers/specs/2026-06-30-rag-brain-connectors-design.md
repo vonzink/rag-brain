@@ -160,9 +160,11 @@ MVP endpoints:
 - `POST /api/connect/v1/brains/{slug}/retrieve`
 - `GET /api/connect/v1/brains/{slug}/readiness`
 
-Federation ask uses the public-safe answer contract. It can retrieve only
-`PUBLIC` sources and must not expose trace IDs, internal notes, admin settings,
-private paths, or non-public source content.
+Federation ask authenticates with connector credentials, then uses a
+connector-safe query service that mirrors the public-safe answer contract. It
+does not pass connector tokens through the website `PublicAccessService`.
+Connector ask can retrieve only `PUBLIC` sources and must not expose trace IDs,
+internal notes, admin settings, private paths, or non-public source content.
 
 Federation retrieve returns ranked public chunks and citation metadata, not raw
 internal trace objects.
