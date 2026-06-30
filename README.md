@@ -36,6 +36,9 @@ One-command local start is also available:
 ./start.sh
 ```
 
+For the full local testing walkthrough and production checklist, see
+[docs/SETUP.md](docs/SETUP.md).
+
 ## Database And pgvector
 
 `docker-compose.yml` runs `pgvector/pgvector:pg16` on host port `5435`.
