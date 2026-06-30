@@ -19,10 +19,12 @@ services:
       timeout: 5s
       retries: 10
 
-  # Application container. Runs the prod profile, so ADMIN_API_KEY MUST be set
-  # (the dev default is rejected at startup). Provide secrets via a .env file or
-  # your shell:  ADMIN_API_KEY=... OPENAI_API_KEY=... docker compose up --build
+  # Optional application container. The default local workflow starts only
+  # Postgres here, then runs ./gradlew bootRun from the host. To test the app
+  # image explicitly, run:
+  #   docker compose --profile app up --build app
   app:
+    profiles: ["app"]
     build:
       context: .
     container_name: rag-brain-app
@@ -33,7 +35,7 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://postgres:5432/rag_brain
       DB_USERNAME: rag_brain
-      DB_PASSWORD: local_dev_only            # local compose only — warns at boot
+      DB_PASSWORD: ${DB_PASSWORD:-local_dev_only}
       ADMIN_API_KEY: ${ADMIN_API_KEY:?ADMIN_API_KEY must be set (no dev default allowed under the prod profile)}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5174}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

@@ -19,15 +19,27 @@ The app boots **without** AI keys (admin/dashboard only) but cannot ingest or
 answer until at least an embedding key is present. See `.env.example` for the
 full list of tunables.
 
-## Run with docker compose (local prod-like)
+## Run local Postgres with docker compose
 
-Brings up Postgres + the app together:
+The default compose command starts only PostgreSQL + pgvector for local host-run
+development:
+
+```bash
+docker compose up -d
+```
+
+## Run the app image with docker compose
+
+The application container is opt-in so it does not conflict with local
+`./gradlew bootRun` on port `8091`:
 
 ```bash
 ADMIN_API_KEY='choose-a-strong-key' \
+DB_PASSWORD='choose-a-db-password' \
+CORS_ALLOWED_ORIGINS='https://dashboard.example.com' \
 OPENAI_API_KEY='sk-...' \
 ANTHROPIC_API_KEY='sk-ant-...' \
-docker compose up --build
+docker compose --profile app up --build app
 ```
 
 App: `http://localhost:8091` (container `8080`). Postgres: host `5435`.
