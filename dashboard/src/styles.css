@@ -366,6 +366,32 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
   line-height: 1.6;
 }
 
+.scope-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.scope-grid label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.connector-token {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid #6d5efc;
+  border-radius: 8px;
+  background: #f8f7ff;
+}
+
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }

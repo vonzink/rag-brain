@@ -77,6 +77,48 @@ export interface BrainReadiness {
   checklist: ConnectChecklistItem[];
 }
 
+export interface ConnectorClient {
+  id: string;
+  name: string;
+  type: "MCP_AGENT" | "PEER_BRAIN" | "SERVER_API" | "INTERNAL_APP";
+  brainId: string | null;
+  scopes: string[];
+  allowedOrigins: string[];
+  allowedPeerHosts: string[];
+  enabled: boolean;
+  hasToken: boolean;
+  lastUsedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface ConnectorClientRequest {
+  name: string;
+  type: ConnectorClient["type"];
+  brainId: string | null;
+  scopes: string[];
+  allowedOrigins: string[];
+  allowedPeerHosts: string[];
+  enabled: boolean;
+}
+
+export interface ConnectorTokenResponse {
+  token: string;
+  client: ConnectorClient;
+}
+
+export interface ConnectorEvent {
+  id: string;
+  connectorClientId: string | null;
+  brainId: string | null;
+  eventType: string;
+  scope: string | null;
+  requestHost: string | null;
+  requestId: string | null;
+  status: string;
+  createdAt: string | null;
+}
+
 export interface DocumentDto {
   id: string; title: string; sourceName: string; sourceType: string;
   visibility: "PUBLIC" | "INTERNAL" | "SECURE";

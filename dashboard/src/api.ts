@@ -1,6 +1,10 @@
 import {
   BrainAdminDto,
   BrainCreateRequest,
+  ConnectorClient,
+  ConnectorClientRequest,
+  ConnectorEvent,
+  ConnectorTokenResponse,
   BrainProfileDto,
   BrainProfileRequest,
   BrainReadiness,
@@ -86,6 +90,18 @@ export const profileApi = {
     api.put<BrainProfileDto>(`/api/ai/admin/brains/${brainId}/profile`, body),
   rotatePublicToken: (brainId: string) =>
     api.post<{ token: string }>(`/api/ai/admin/brains/${brainId}/profile/public-token`, {}),
+};
+
+export const connectorsApi = {
+  list: () => api.get<ConnectorClient[]>("/api/ai/admin/connectors"),
+  create: (body: ConnectorClientRequest) => api.post<ConnectorClient>("/api/ai/admin/connectors", body),
+  update: (id: string, body: ConnectorClientRequest) =>
+    api.put<ConnectorClient>(`/api/ai/admin/connectors/${id}`, body),
+  rotateToken: (id: string) =>
+    api.post<ConnectorTokenResponse>(`/api/ai/admin/connectors/${id}/token`, {}),
+  enable: (id: string) => api.post<ConnectorClient>(`/api/ai/admin/connectors/${id}/enable`, {}),
+  disable: (id: string) => api.post<ConnectorClient>(`/api/ai/admin/connectors/${id}/disable`, {}),
+  events: (id: string) => api.get<ConnectorEvent[]>(`/api/ai/admin/connectors/${id}/events`),
 };
 
 export async function publicAsk(slug: string, token: string, body: PublicAskRequest) {

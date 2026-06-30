@@ -5,6 +5,7 @@ import { Stats } from "./types";
 import Corpus from "./screens/Corpus";
 import Brains from "./screens/Brains";
 import Connect from "./screens/Connect";
+import Connectors from "./screens/Connectors";
 import Settings from "./screens/Settings";
 import Rules from "./screens/Rules";
 import Vocabulary from "./screens/Vocabulary";
@@ -68,6 +69,7 @@ export default function App() {
             <NavLink to="/corpus">Corpus</NavLink>
             <NavLink to="/brains">Brains</NavLink>
             <NavLink to="/connect">Connect</NavLink>
+            <NavLink to="/connectors">Connectors</NavLink>
             <NavLink to="/personality">Personality</NavLink>
             <NavLink to="/settings">Settings</NavLink>
             <NavLink to="/rules">Rules</NavLink>
@@ -87,6 +89,7 @@ export default function App() {
               api.get<Stats>("/api/ai/admin/stats").then(setStats).catch(() => undefined)} />} />
             <Route path="/brains" element={<Brains />} />
             <Route path="/connect" element={<Connect />} />
+            <Route path="/connectors" element={<Connectors />} />
             <Route path="/personality" element={<Personality stats={stats} />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/rules" element={<Rules />} />
