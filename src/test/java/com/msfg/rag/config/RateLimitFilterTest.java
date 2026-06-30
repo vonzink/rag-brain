@@ -15,7 +15,7 @@ class RateLimitFilterTest {
             new RagProperties.Chunking(1000, 1200, 150),
             new RagProperties.Storage("./data/documents"),
             new RagProperties.Admin("k"),
-            new RagProperties.RateLimit(10));
+            new RagProperties.RateLimit(10, 60, 120));
 
     @Test
     void limitsTheConfiguredAskPathAndAnyPublicAskSlug() {
@@ -27,8 +27,22 @@ class RateLimitFilterTest {
                 "generic public ask must be rate limited");
         assertFalse(filter.shouldNotFilter(get("/api/ai/public/other-brain/ask")),
                 "other-brain public ask must be rate limited");
-        assertTrue(filter.shouldNotFilter(get("/api/ai/documents")),
-                "admin endpoints are not rate limited by this filter");
+        assertFalse(filter.shouldNotFilter(get("/api/ai/documents")),
+                "admin document endpoints should be rate limited");
+    }
+
+    @Test
+    void limitsConnectorAndMcpSurfaces() {
+        RateLimitFilter filter = new RateLimitFilter(props, "mortgage", false, 1);
+
+        assertFalse(filter.shouldNotFilter(get("/api/connect/v1/brains/generic/ask")),
+                "federation ask must be rate limited");
+        assertFalse(filter.shouldNotFilter(get("/api/connect/v1/brains/generic/retrieve")),
+                "federation retrieve must be rate limited");
+        assertFalse(filter.shouldNotFilter(get("/mcp/tools/rag_brain_ask")),
+                "MCP tool calls must be rate limited");
+        assertFalse(filter.shouldNotFilter(get("/api/ai/admin/connectors")),
+                "admin connector management must be rate limited");
     }
 
     @Test

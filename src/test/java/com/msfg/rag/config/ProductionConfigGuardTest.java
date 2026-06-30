@@ -34,13 +34,12 @@ class ProductionConfigGuardTest {
     }
 
     @Test
-    void warnsButBootsOnDefaultDbPasswordAndLocalhostCors() {
+    void failsOnDefaultDbPasswordAndLocalhostCors() {
         ProductionConfigGuard guard = new ProductionConfigGuard(
                 "S3cure-Admin-Key-9f2b", ProductionConfigGuard.DEFAULT_DB_PASSWORD,
                 "http://localhost:5173,http://127.0.0.1:3000");
-        assertTrue(guard.errors().isEmpty());
-        assertTrue(guard.warnings().stream().anyMatch(w -> w.contains("DB_PASSWORD")));
-        assertTrue(guard.warnings().stream().anyMatch(w -> w.contains("CORS")));
-        assertDoesNotThrow(guard::verify);
+        assertTrue(guard.errors().stream().anyMatch(e -> e.contains("DB_PASSWORD")));
+        assertTrue(guard.errors().stream().anyMatch(e -> e.contains("CORS")));
+        assertThrows(IllegalStateException.class, guard::verify);
     }
 }

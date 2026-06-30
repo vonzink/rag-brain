@@ -8,7 +8,7 @@ Everything runs locally; nothing here touches production.
 The dashboard lock screen wants the admin API key from `.env`:
 
 ```sh
-cd ~/MSFG/msfg-rag
+cd ~/rag-brain
 grep ADMIN_API_KEY .env          # prints the line; the key is after the "="
 ```
 
@@ -29,49 +29,52 @@ start command again) — env values are read at startup.
 
 ## Start everything (two terminal tabs)
 
-**Tab 1 — the brain (API on port 8090):**
+**Tab 1 — the brain (API on port 8091):**
 
 ```sh
-cd ~/MSFG/msfg-rag && set -a && source .env && set +a && ./gradlew bootRun --args='--server.port=8090'
+cd ~/rag-brain && set -a && source .env && set +a && ./gradlew bootRun --args='--server.port=8091'
 ```
 
 Ready when the log prints `Started MsfgRagApplication` (~10 s). Leave running.
 
-**Tab 2 — the dashboard (port 5173):**
+**Tab 2 — the dashboard (port 5174):**
 
 ```sh
-cd ~/MSFG/msfg-rag/dashboard && npm run dev
+cd ~/rag-brain/dashboard && npm run dev -- --port 5174
 ```
 
-Then open **http://localhost:5173** in a browser and unlock with the admin key.
+Then open **http://localhost:5174** in a browser and unlock with the admin key.
 
 ## Stop everything
 
 Press `Ctrl + C` in each terminal tab, or from anywhere:
 
 ```sh
-lsof -ti:8090 -ti:5173 | xargs kill
+lsof -ti:8091 -ti:5174 | xargs kill
 ```
 
-## The five dashboard screens
+## Dashboard screens
 
 | Screen | What it does |
 |---|---|
-| Corpus | Documents in the brain; **Sync now** / **Dry run** pull from S3 (`msfg.us/rag-brain/`); activate/deactivate/reindex |
-| Settings | Switch AI models (answer lane / utility lane) and retrieval knobs — live in ~10 s, no restart |
-| Test console | Ask the brain as if you were a website visitor, or "Retrieval only" to see which sources it found |
-| Audit | Every question ever asked: confidence, model used, escalations; click a row for the full answer |
-| Rules | **Your control panel for answers.** Hard rules (no wiggle room) and Strong recommendations (guidance). Edit → Save as new revision → live in ~10 s. Preview full prompt shows exactly what the AI is told. Revert to pack default any time; full history kept |
+| Brains | Create/select brains and source bindings |
+| Corpus | Documents in the brain; upload, sync, activate/deactivate, reindex |
+| Personality | Public mode, disclaimer, allowed domains, token generation |
+| Connect | Website widget installer and live verification |
+| Connectors | Scoped server/agent/peer connectors and token rotation |
+| Test Console | Ask the brain or run retrieval-only tests |
+| Audit | Answers, confidence, retrieved sources, and traces |
+| Rules/Vocabulary/Links/Page Guides | Control answer behavior and approved source/navigation links |
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| Brain won't start, database connection error | `docker start msfg-rag-postgres`, then start the brain again |
-| "Port 8090 already in use" | An old copy is running: `lsof -ti:8090 \| xargs kill`, then start again |
+| Brain won't start, database connection error | `docker compose up -d`, then start the brain again |
+| "Port 8091 already in use" | An old copy is running: `lsof -ti:8091 \| xargs kill`, then start again |
 | Dashboard says key rejected | Re-copy the key from `.env` (no spaces); the brain must be running first |
 | Sync fails | AWS credentials: the same setup the `scripts/s3-ingest` tool uses must be available |
-| Old process on port 8080 | That's the pre-platform brain — safe to kill: `lsof -ti:8080 \| xargs kill` |
+| Old process on port 8080 | A prior app may be running — check before killing: `lsof -nP -iTCP:8080 -sTCP:LISTEN` |
 
 ## Adding an AI provider
 
@@ -84,7 +87,7 @@ invisible to the dashboard.
 1. Open `.env` in TextEdit:
 
    ```sh
-   open -e ~/MSFG/msfg-rag/.env
+   open -e ~/rag-brain/.env
    ```
 
 2. Find the matching `..._API_KEY=` line and paste your key directly after the

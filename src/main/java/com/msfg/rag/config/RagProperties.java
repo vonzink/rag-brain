@@ -46,6 +46,12 @@ public record RagProperties(
     ) {}
 
     public record RateLimit(
-            int requestsPerMinute
-    ) {}
+            int requestsPerMinute,
+            int connectorRequestsPerMinute,
+            int adminRequestsPerMinute
+    ) {
+        public RateLimit(int requestsPerMinute) {
+            this(requestsPerMinute, 60, 120);
+        }
+    }
 }

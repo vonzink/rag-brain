@@ -1,8 +1,7 @@
 # Production profile overrides. Activate with SPRING_PROFILES_ACTIVE=prod.
 #
-# ProductionConfigGuard (active only under this profile) aborts startup if the
-# admin API key is blank or still the development default, and warns on a
-# default DB password or localhost-only CORS.
+# ProductionConfigGuard (active only under this profile) aborts startup if
+# production-critical settings are missing or still using local defaults.
 #
 # Actuator is locked down to a detail-free health endpoint so liveness/readiness
 # probes work without leaking build, DB, or dependency information. If you need

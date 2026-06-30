@@ -7,6 +7,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -34,14 +36,20 @@ import java.util.regex.Pattern;
  * bucket4j store if we scale horizontally (limits would otherwise be per-pod).
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final int MAX_TRACKED_CLIENTS = 100_000;
     private static final UrlPathHelper PATH_HELPER = new UrlPathHelper();
     private static final Pattern PUBLIC_ASK_PATH = Pattern.compile("^/api/ai/public/[^/]+/ask$");
+    private static final Pattern CONNECTOR_PATH = Pattern.compile("^/api/connect/v1(?:/.*)?$");
+    private static final Pattern MCP_PATH = Pattern.compile("^/mcp/tools(?:/.*)?$");
+    private static final Pattern ADMIN_PATH = Pattern.compile("^/api/ai/(admin|documents)(?:/.*)?$");
 
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
-    private final int requestsPerMinute;
+    private final int publicRequestsPerMinute;
+    private final int connectorRequestsPerMinute;
+    private final int adminRequestsPerMinute;
     private final Set<String> askPaths;
     private final boolean trustForwardedFor;
     private final int trustedProxyCount;
@@ -50,7 +58,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                            @Value("${brain.slug:generic}") String slug,
                            @Value("${msfg.rag.rate-limit.trust-forwarded-for:false}") boolean trustForwardedFor,
                            @Value("${msfg.rag.rate-limit.trusted-proxy-count:1}") int trustedProxyCount) {
-        this.requestsPerMinute = properties.rateLimit().requestsPerMinute();
+        this.publicRequestsPerMinute = Math.max(1, properties.rateLimit().requestsPerMinute());
+        this.connectorRequestsPerMinute = Math.max(1, properties.rateLimit().connectorRequestsPerMinute());
+        this.adminRequestsPerMinute = Math.max(1, properties.rateLimit().adminRequestsPerMinute());
         this.askPaths = Set.of(
                 "/api/ai/" + slug + "/ask",
                 "/api/ai/public/" + slug + "/ask");
@@ -67,7 +77,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
         // Decoded path — percent-encoding must not bypass rate limiting.
         String path = PATH_HELPER.getPathWithinApplication(request);
-        return !askPaths.contains(path) && !PUBLIC_ASK_PATH.matcher(path).matches();
+        return policy(path).isNone();
     }
 
     @Override
@@ -81,11 +91,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
             buckets.clear();
         }
 
-        Bucket bucket = buckets.computeIfAbsent(clientKey(request), key ->
+        LimitPolicy policy = policy(PATH_HELPER.getPathWithinApplication(request));
+        Bucket bucket = buckets.computeIfAbsent(policy.keyPrefix() + ":" + clientKey(request), key ->
                 Bucket.builder()
                         .addLimit(Bandwidth.builder()
-                                .capacity(requestsPerMinute)
-                                .refillGreedy(requestsPerMinute, Duration.ofMinutes(1))
+                                .capacity(policy.requestsPerMinute())
+                                .refillGreedy(policy.requestsPerMinute(), Duration.ofMinutes(1))
                                 .build())
                         .build());
 
@@ -119,5 +130,26 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
         String ip = parts[idx].strip();
         return ip.isEmpty() ? request.getRemoteAddr() : ip;
+    }
+
+    private LimitPolicy policy(String path) {
+        if (askPaths.contains(path) || PUBLIC_ASK_PATH.matcher(path).matches()) {
+            return new LimitPolicy("public", publicRequestsPerMinute);
+        }
+        if (CONNECTOR_PATH.matcher(path).matches() || MCP_PATH.matcher(path).matches()) {
+            return new LimitPolicy("connector", connectorRequestsPerMinute);
+        }
+        if (ADMIN_PATH.matcher(path).matches()) {
+            return new LimitPolicy("admin", adminRequestsPerMinute);
+        }
+        return LimitPolicy.NONE;
+    }
+
+    private record LimitPolicy(String keyPrefix, int requestsPerMinute) {
+        static final LimitPolicy NONE = new LimitPolicy("none", 0);
+
+        boolean isNone() {
+            return this == NONE;
+        }
     }
 }

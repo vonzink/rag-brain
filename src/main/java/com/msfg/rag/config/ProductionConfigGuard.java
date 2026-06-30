@@ -12,11 +12,10 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Fails startup (or warns loudly) when the app boots under the {@code prod}
- * profile while still carrying development defaults. The known-default admin key
- * is treated as a hard error because that surface mutates the corpus and config;
- * the dev DB password and localhost-only CORS are warnings so an operator can
- * make a deliberate choice without being blocked.
+ * Fails startup when the app boots under the {@code prod} profile while still
+ * carrying development defaults. These checks intentionally block the process:
+ * a production instance with a default admin key, dev DB password, or localhost
+ * CORS is not a safe deployment.
  *
  * Only active under the {@code prod} profile so local/test boots are unaffected.
  */
@@ -54,25 +53,22 @@ public class ProductionConfigGuard {
         log.info("[prod-config] production configuration checks passed");
     }
 
-    /** Hard failures: startup must abort. */
     List<String> errors() {
         List<String> errors = new ArrayList<>();
         if (isBlank(adminKey) || DEFAULT_ADMIN_KEY.equals(adminKey.strip())) {
             errors.add("ADMIN_API_KEY is blank or still the development default — set a strong, unique key");
         }
+        if (isBlank(dbPassword) || DEFAULT_DB_PASSWORD.equals(dbPassword.strip())) {
+            errors.add("DB_PASSWORD is blank or the development default — use a managed secret in production");
+        }
+        if (isLocalhostOnly(corsOrigins)) {
+            errors.add("CORS allowed-origins is empty or localhost-only — set CORS_ALLOWED_ORIGINS to your real site origins");
+        }
         return errors;
     }
 
-    /** Soft issues: log but allow boot so an operator can decide. */
     List<String> warnings() {
-        List<String> warnings = new ArrayList<>();
-        if (isBlank(dbPassword) || DEFAULT_DB_PASSWORD.equals(dbPassword.strip())) {
-            warnings.add("DB_PASSWORD is blank or the development default — use a managed secret in production");
-        }
-        if (isLocalhostOnly(corsOrigins)) {
-            warnings.add("CORS allowed-origins is empty or localhost-only — set CORS_ALLOWED_ORIGINS to your real site origins");
-        }
-        return warnings;
+        return List.of();
     }
 
     private static boolean isLocalhostOnly(String origins) {
