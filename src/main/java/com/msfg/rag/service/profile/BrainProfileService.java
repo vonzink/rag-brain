@@ -8,7 +8,9 @@ import com.msfg.rag.repository.BrainRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -41,7 +43,7 @@ public class BrainProfileService {
             profile.setCitationPolicy("required_when_sources_used");
             profile.setCtaPolicy("Recommend relevant pages or a human handoff when useful.");
             profile.setDisclaimer("This answer is generated from approved source context and may be incomplete.");
-            profile.setPublicEnabled(true);
+            profile.setPublicEnabled(false);
             profile.setAllowedDomains(List.of());
             return profiles.save(profile);
         });
@@ -50,7 +52,12 @@ public class BrainProfileService {
     @Transactional
     public BrainProfile update(UUID brainId, BrainProfileRequest req) {
         BrainProfile profile = getOrCreate(brainId);
-        profile.setMode(parseMode(req.mode()));
+        BrainMode mode = parseMode(req.mode());
+        List<String> allowedDomains = normalizeAllowedDomains(req.allowedDomains());
+        if (req.publicEnabled() && allowedDomains.isEmpty()) {
+            throw new IllegalArgumentException("allowedDomains is required when public access is enabled");
+        }
+        profile.setMode(mode);
         profile.setPurpose(required(req.purpose(), "purpose"));
         profile.setAudience(required(req.audience(), "audience"));
         profile.setPersonality(required(req.personality(), "personality"));
@@ -64,7 +71,7 @@ public class BrainProfileService {
         profile.setCtaPolicy(required(req.ctaPolicy(), "ctaPolicy"));
         profile.setDisclaimer(required(req.disclaimer(), "disclaimer"));
         profile.setPublicEnabled(req.publicEnabled());
-        profile.setAllowedDomains(normalizeAllowedDomains(req.allowedDomains()));
+        profile.setAllowedDomains(allowedDomains);
         return profiles.save(profile);
     }
 
@@ -95,8 +102,24 @@ public class BrainProfileService {
         return allowedDomains.stream()
                 .map(String::strip)
                 .filter(s -> !s.isBlank())
-                .map(String::toLowerCase)
+                .map(BrainProfileService::toHost)
                 .distinct()
                 .toList();
+    }
+
+    private static String toHost(String value) {
+        String raw = value.strip();
+        String withScheme = raw.matches("(?i)^[a-z][a-z0-9+.-]*://.*")
+                ? raw
+                : "https://" + raw;
+        try {
+            String host = URI.create(withScheme).getHost();
+            if (host == null || host.isBlank()) {
+                throw new IllegalArgumentException("allowedDomains entries must be valid domains or origins");
+            }
+            return host.toLowerCase(Locale.US);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("allowedDomains entries must be valid domains or origins");
+        }
     }
 }

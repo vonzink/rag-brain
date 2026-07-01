@@ -11,12 +11,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Admin endpoints for viewing and editing the two owner-editable rule blocks
@@ -53,8 +55,9 @@ public class AdminRulesController {
      * short form (strip the {@code "rules."} prefix) for dashboard convenience.
      */
     @GetMapping
-    public Map<String, RuleState> getState() {
-        return shortKeyMap(rulesService.state(brainResolver.resolve(null).getId()));
+    public Map<String, RuleState> getState(@RequestParam(value = "brain", required = false) String brain) {
+        UUID brainId = brainResolver.resolve(brain).getId();
+        return shortKeyMap(rulesService.state(brainId));
     }
 
     // ── PUT /api/ai/admin/rules/{key} ────────────────────────────────────────
@@ -70,13 +73,15 @@ public class AdminRulesController {
      */
     @PutMapping("/{key}")
     public Map<String, RuleState> putRule(@PathVariable String key,
+                                          @RequestParam(value = "brain", required = false) String brain,
                                           @RequestBody ContentBody body) {
         requireKnownKey(key);
         if (body == null || body.content() == null || body.content().isBlank()) {
             throw new IllegalArgumentException("content must be non-blank for key: " + key);
         }
-        rulesService.save(key, body.content(), UPDATED_BY);
-        return shortKeyMap(rulesService.state(brainResolver.resolve(null).getId()));
+        UUID brainId = brainResolver.resolve(brain).getId();
+        rulesService.save(brainId, key, body.content(), UPDATED_BY);
+        return shortKeyMap(rulesService.state(brainId));
     }
 
     // ── POST /api/ai/admin/rules/{key}/revert ────────────────────────────────
@@ -88,9 +93,11 @@ public class AdminRulesController {
      * @return fresh state map (same shape as GET)
      */
     @PostMapping("/{key}/revert")
-    public Map<String, RuleState> revertRule(@PathVariable String key) {
-        rulesService.revert(key, UPDATED_BY);
-        return shortKeyMap(rulesService.state(brainResolver.resolve(null).getId()));
+    public Map<String, RuleState> revertRule(@PathVariable String key,
+                                             @RequestParam(value = "brain", required = false) String brain) {
+        UUID brainId = brainResolver.resolve(brain).getId();
+        rulesService.revert(brainId, key, UPDATED_BY);
+        return shortKeyMap(rulesService.state(brainId));
     }
 
     // ── GET /api/ai/admin/rules/{key}/history ────────────────────────────────
@@ -105,8 +112,10 @@ public class AdminRulesController {
      * {@code /{key}/history} pattern, so there is no ambiguity.
      */
     @GetMapping("/{key}/history")
-    public List<Map<String, Object>> history(@PathVariable String key) {
-        List<RuleRevision> revisions = rulesService.history(key);
+    public List<Map<String, Object>> history(@PathVariable String key,
+                                             @RequestParam(value = "brain", required = false) String brain) {
+        UUID brainId = brainResolver.resolve(brain).getId();
+        List<RuleRevision> revisions = rulesService.history(brainId, key);
         int total = revisions.size();
         List<Map<String, Object>> result = new ArrayList<>(total);
         for (int i = 0; i < total; i++) {
@@ -132,9 +141,10 @@ public class AdminRulesController {
      * <p>Spring resolves this literal mapping before the {@code /{key}} wildcard.
      */
     @GetMapping("/preview")
-    public Map<String, String> preview() {
+    public Map<String, String> preview(@RequestParam(value = "brain", required = false) String brain) {
+        UUID brainId = brainResolver.resolve(brain).getId();
         String prompt = promptBuilder.build(
-                "<your question here>", List.of(), brainResolver.resolve(null).getId());
+                "<your question here>", List.of(), brainId);
         return Map.of("prompt", prompt);
     }
 

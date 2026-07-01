@@ -24,9 +24,11 @@ import com.msfg.rag.service.ai.QuestionClassifierService;
 import com.msfg.rag.service.audit.AuditLogService;
 import com.msfg.rag.service.audit.RagTraceService;
 import com.msfg.rag.service.clarification.ClarificationDecision;
+import com.msfg.rag.service.retrieval.AgenticRetrievalService;
 import com.msfg.rag.service.retrieval.PlannedEvidence;
 import com.msfg.rag.service.retrieval.RetrievalResult;
 import com.msfg.rag.service.retrieval.RetrievalPlan;
+import com.msfg.rag.service.retrieval.RetrievalPlannerService;
 import com.msfg.rag.service.retrieval.RetrievalService;
 import com.msfg.rag.service.retrieval.RetrievedChunk;
 import com.msfg.rag.service.retrieval.SourceKind;
@@ -122,10 +124,11 @@ class AskServiceTest {
         when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
         RagTraceService trace = traceService();
 
-        return new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+        return new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper(),
-                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+                new OutputContractService(), trace,
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
     }
 
     /** Builds an AskService that classifies every question as {@code category}. */
@@ -158,14 +161,22 @@ class AskServiceTest {
         when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
         RagTraceService trace = traceService();
 
-        return new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+        return new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper(),
-                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+                new OutputContractService(), trace,
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
     }
 
     private record RetrievalPlannerServiceMocks(
             com.msfg.rag.service.retrieval.RetrievalPlannerService planner) {}
+
+    private AgenticRetrievalService agentic(IntentRouterService intentRouter,
+                                            RetrievalPlannerService planner,
+                                            VocabularyService vocabulary,
+                                            RetrievalService retrieval) {
+        return new AgenticRetrievalService(intentRouter, planner, vocabulary, retrieval);
+    }
 
     private RetrievalPlannerServiceMocks plannerMocks() {
         var planner = mock(com.msfg.rag.service.retrieval.RetrievalPlannerService.class);
@@ -300,19 +311,26 @@ class AskServiceTest {
         when(vocabulary.previewExpansion(any(), anyString())).thenReturn("expanded question");
         RagTraceService trace = traceService();
 
-        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+        AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper(),
-                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+                new OutputContractService(), trace,
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
 
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.INTERNAL);
 
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> confidenceReason =
+                ArgumentCaptor.forClass((Class<Map<String, Object>>) (Class<?>) Map.class);
         verify(trace).record(any(), eq(TestBrains.DEFAULT_ID), eq("What is PMI?"), eq("expanded question"),
                 eq(Intent.GUIDELINE_QUESTION), any(), anyList(), any(), anyList(), eq("PMI is mortgage insurance."),
                 eq(0.85), eq(false), eq(ResponseType.ANSWER), eq(ClarificationDecision.answer()),
-                eq(SourceVisibility.INTERNAL), eq(Map.of()),
-                eq(Map.of("retrieval_confidence", 0.73, "source_count", 1)),
+                eq(SourceVisibility.INTERNAL), eq(Map.of()), confidenceReason.capture(),
                 eq("valid"));
+        assertEquals(0.73, confidenceReason.getValue().get("retrieval_confidence"));
+        assertEquals(1, confidenceReason.getValue().get("source_count"));
+        assertEquals("What is PMI?", confidenceReason.getValue().get("selected_query"));
+        assertInstanceOf(List.class, confidenceReason.getValue().get("retrieval_attempts"));
     }
 
     @Test
@@ -357,10 +375,11 @@ class AskServiceTest {
         when(vocabulary.previewExpansion(any(), anyString())).thenReturn("expanded question");
         RagTraceService trace = traceService();
 
-        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+        AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper(),
-                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+                new OutputContractService(), trace,
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
 
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.INTERNAL);
 
@@ -398,10 +417,11 @@ class AskServiceTest {
         when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
         RagTraceService trace = traceService();
 
-        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+        AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper(),
-                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+                new OutputContractService(), trace,
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
 
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.INTERNAL);
 
@@ -464,10 +484,11 @@ class AskServiceTest {
         when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
         RagTraceService trace = traceService();
 
-        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+        AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper(),
-                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+                new OutputContractService(), trace,
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
 
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
 
@@ -519,10 +540,11 @@ class AskServiceTest {
         when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
         RagTraceService trace = traceService();
 
-        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+        AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper(),
-                intentRouter, planner, new OutputContractService(), vocabulary, trace);
+                new OutputContractService(), trace,
+                agentic(intentRouter, planner, vocabulary, retrieval));
 
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
 
@@ -530,6 +552,70 @@ class AskServiceTest {
         order.verify(planner).collect(eq(TestBrains.DEFAULT_ID), eq(plan), eq("What is PMI?"), any(), any());
         order.verify(promptBuilder).build(eq("What is PMI?"), eq(chunks), eq(TestBrains.DEFAULT_ID), same(sideEvidence));
         order.verify(router).generate(any(), eq(TestBrains.DEFAULT_ID));
+    }
+
+    @Test
+    void weakInitialRetrievalRetriesWithRewrittenQueryBeforeRefusing() {
+        QuestionClassifierService classifier = mock(QuestionClassifierService.class);
+        when(classifier.classify(anyString(), any())).thenReturn(QuestionCategory.EDUCATIONAL);
+
+        RetrievalService retrieval = mock(RetrievalService.class);
+        List<RetrievedChunk> chunks = List.of(
+                chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1)));
+        when(retrieval.retrieve("PMI", TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC))
+                .thenReturn(RetrievalResult.empty());
+        when(retrieval.retrieve("private mortgage insurance", TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC))
+                .thenReturn(new RetrievalResult(chunks, 0.88, true));
+
+        PromptBuilderService promptBuilder = mock(PromptBuilderService.class);
+        when(promptBuilder.build(anyString(), anyList(), any(), any())).thenReturn("PROMPT");
+        when(promptBuilder.disclaimer(any())).thenReturn("pack-disclaimer");
+
+        ModelRouterService router = mock(ModelRouterService.class);
+        String groundedJson = """
+                {"answer":"PMI is private mortgage insurance.",
+                 "citations":[],
+                 "confidence":0.87,
+                 "human_escalation_required":false,
+                 "disclaimer":"d"}""";
+        AiResponse aiResponse = new AiResponse(groundedJson, "anthropic", "claude", 10, 10);
+        when(router.generate(any(), any()))
+                .thenReturn(new ModelRouterService.RoutedResponse(aiResponse, false));
+
+        AuditLogService audit = mock(AuditLogService.class);
+        ConversationRepository conversations = mock(ConversationRepository.class);
+        when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        MessageRepository messages = mock(MessageRepository.class);
+        when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        AnswerSourceRepository sources = mock(AnswerSourceRepository.class);
+        when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        IntentRouterService intentRouter = mock(IntentRouterService.class);
+        when(intentRouter.route("PMI", "/learn", "PUBLIC")).thenReturn(Intent.PAGE_GUIDANCE);
+        when(intentRouter.isCalculationRequest("PMI")).thenReturn(false);
+        var planner = mock(com.msfg.rag.service.retrieval.RetrievalPlannerService.class);
+        RetrievalPlan plan = new RetrievalPlan(Set.of(SourceKind.CORPUS, SourceKind.PAGE_GUIDE));
+        when(planner.plan(Intent.PAGE_GUIDANCE, "/learn", "PUBLIC")).thenReturn(plan);
+        when(planner.collect(TestBrains.DEFAULT_ID, plan, "private mortgage insurance", "/learn", "PUBLIC"))
+                .thenReturn(PlannedEvidence.empty());
+        VocabularyService vocabulary = mock(VocabularyService.class);
+        when(vocabulary.previewExpansion(TestBrains.DEFAULT_ID, "PMI")).thenReturn("private mortgage insurance");
+        RagTraceService trace = traceService();
+
+        AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
+                new AnswerValidationService(TestPacks.registry()), audit,
+                conversations, messages, sources, new ObjectMapper(),
+                new OutputContractService(), trace,
+                agentic(intentRouter, planner, vocabulary, retrieval));
+
+        AskResponse response = service.ask(
+                new AskRequest(null, "session-1", "PMI", null, null, "/learn", "PUBLIC"),
+                TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
+
+        assertFalse(response.humanEscalationRequired());
+        assertEquals("PMI is private mortgage insurance.", response.answer());
+        verify(retrieval).retrieve("private mortgage insurance", TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
+        verify(promptBuilder).build(anyString(), eq(chunks), eq(TestBrains.DEFAULT_ID), any());
     }
 
     @Test
@@ -702,10 +788,11 @@ class AskServiceTest {
         when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
         RagTraceService trace = traceService();
 
-        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+        AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper(),
-                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+                new OutputContractService(), trace,
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
 
         AskResponse response = service.ask(
                 new AskRequest(null, "session-1", "Calculate my monthly payment", null, null),
@@ -760,10 +847,11 @@ class AskServiceTest {
         when(vocabulary.previewExpansion(any(), anyString())).thenAnswer(inv -> inv.getArgument(1));
         RagTraceService trace = traceService();
 
-        AskService service = new AskService(TestPacks.registry(), classifier, retrieval, promptBuilder, router,
+        AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
                 conversations, messages, sources, new ObjectMapper(),
-                intentRouter, plannerMocks.planner(), new OutputContractService(), vocabulary, trace);
+                new OutputContractService(), trace,
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
 
         AskRequest request = new AskRequest(null, "session-1", "What is PMI?", null, null,
                 null, null, Map.of("loan_type", "FHA"));

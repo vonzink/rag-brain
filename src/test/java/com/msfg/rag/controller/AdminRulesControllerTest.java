@@ -42,8 +42,9 @@ class AdminRulesControllerTest {
                 "rules.hard",     hardState,
                 "rules.guidance", guidanceState));
 
-        Map<String, RuleState> body = controller.getState();
+        Map<String, RuleState> body = controller.getState("mortgage");
 
+        verify(brainResolver).resolve("mortgage");
         assertEquals(hardState,     body.get("hard"),     "hard key must be shortened");
         assertEquals(guidanceState, body.get("guidance"), "guidance key must be shortened");
         assertEquals(2, body.size(), "exactly two entries");
@@ -62,9 +63,11 @@ class AdminRulesControllerTest {
                 "rules.guidance", guidanceState));
 
         Map<String, RuleState> body = controller.putRule("rules.hard",
+                "mortgage",
                 new AdminRulesController.ContentBody("Updated."));
 
-        verify(rulesService).save("rules.hard", "Updated.", "admin-api");
+        verify(brainResolver).resolve("mortgage");
+        verify(rulesService).save(TestBrains.DEFAULT_ID, "rules.hard", "Updated.", "admin-api");
         assertEquals(savedState, body.get("hard"));
     }
 
@@ -72,22 +75,25 @@ class AdminRulesControllerTest {
     void putRejectsBlankContent() {
         assertThrows(IllegalArgumentException.class,
                 () -> controller.putRule("rules.hard",
+                        "mortgage",
                         new AdminRulesController.ContentBody("")));
 
         assertThrows(IllegalArgumentException.class,
                 () -> controller.putRule("rules.guidance",
+                        "mortgage",
                         new AdminRulesController.ContentBody(null)));
 
-        verify(rulesService, never()).save(any(), any(), any());
+        verify(rulesService, never()).save(any(), any(), any(), any());
     }
 
     @Test
     void putRejectsUnknownKey() {
         assertThrows(IllegalArgumentException.class,
                 () -> controller.putRule("rules.unknown",
+                        "mortgage",
                         new AdminRulesController.ContentBody("Some content.")));
 
-        verify(rulesService, never()).save(any(), any(), any());
+        verify(rulesService, never()).save(any(), any(), any(), any());
     }
 
     // ── POST /api/ai/admin/rules/{key}/revert ────────────────────────────────
@@ -102,9 +108,10 @@ class AdminRulesControllerTest {
                 "rules.hard",     packState,
                 "rules.guidance", guidanceState));
 
-        Map<String, RuleState> body = controller.revertRule("rules.guidance");
+        Map<String, RuleState> body = controller.revertRule("rules.guidance", "mortgage");
 
-        verify(rulesService).revert("rules.guidance", "admin-api");
+        verify(brainResolver).resolve("mortgage");
+        verify(rulesService).revert(TestBrains.DEFAULT_ID, "rules.guidance", "admin-api");
         assertEquals(guidanceState, body.get("guidance"));
     }
 
@@ -121,10 +128,11 @@ class AdminRulesControllerTest {
         RuleRevision rev2 = makeRevision("rules.hard", null, t2, "bob");    // revert marker
         RuleRevision rev1 = makeRevision("rules.hard", "First content", t1, "alice");
 
-        when(rulesService.history("rules.hard")).thenReturn(List.of(rev3, rev2, rev1));
+        when(rulesService.history(TestBrains.DEFAULT_ID, "rules.hard")).thenReturn(List.of(rev3, rev2, rev1));
 
-        List<Map<String, Object>> history = controller.history("rules.hard");
+        List<Map<String, Object>> history = controller.history("rules.hard", "mortgage");
 
+        verify(brainResolver).resolve("mortgage");
         assertEquals(3, history.size());
 
         // Newest (index 0) gets revision = list.size() = 3
@@ -151,15 +159,16 @@ class AdminRulesControllerTest {
     void previewReturnsBuildOutput() {
         when(promptBuilder.build(anyString(), eq(List.of()), any())).thenReturn("<<built prompt>>");
 
-        Map<String, String> body = controller.preview();
+        Map<String, String> body = controller.preview("mortgage");
 
+        verify(brainResolver).resolve("mortgage");
         assertEquals("<<built prompt>>", body.get("prompt"));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private RuleRevision makeRevision(String key, String content, OffsetDateTime at, String by) {
-        RuleRevision r = new RuleRevision(key, content, by);
+        RuleRevision r = new RuleRevision(TestBrains.DEFAULT_ID, key, content, by);
         // inject createdAt via reflection (no public setter)
         try {
             var f = RuleRevision.class.getDeclaredField("createdAt");

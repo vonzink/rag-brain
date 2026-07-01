@@ -75,6 +75,27 @@ class PublicAccessServiceTest {
     }
 
     @Test
+    void validateRejectsPublicProfileWithNoAllowedDomains() {
+        UUID brainId = UUID.randomUUID();
+        BrainProfile p = profile(brainId, "pub_test");
+        p.setAllowedDomains(List.of());
+        when(profiles.getOrCreate(brainId)).thenReturn(p);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.validate(brainId, "pub_test", "https://example.com"));
+    }
+
+    @Test
+    void rotateTokenRejectsPublicProfileWithNoAllowedDomains() {
+        UUID brainId = UUID.randomUUID();
+        BrainProfile p = profile(brainId, "old");
+        p.setAllowedDomains(List.of());
+        when(profiles.getOrCreate(brainId)).thenReturn(p);
+
+        assertThrows(IllegalArgumentException.class, () -> service.rotateToken(brainId));
+    }
+
+    @Test
     void rotateTokenStoresHashAndReturnsPlainTokenOnce() {
         UUID brainId = UUID.randomUUID();
         BrainProfile p = profile(brainId, "old");

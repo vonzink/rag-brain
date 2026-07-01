@@ -19,6 +19,9 @@ public class RuleRevision {
     @GeneratedValue
     private UUID id;
 
+    @Column(name = "brain_id", nullable = false)
+    private UUID brainId;
+
     @Column(name = "rule_key", length = 32, nullable = false)
     private String ruleKey;
 
@@ -33,7 +36,8 @@ public class RuleRevision {
 
     protected RuleRevision() {}
 
-    public RuleRevision(String ruleKey, String content, String createdBy) {
+    public RuleRevision(UUID brainId, String ruleKey, String content, String createdBy) {
+        this.brainId = brainId;
         this.ruleKey = ruleKey;
         this.content = content;
         this.createdBy = createdBy;
@@ -45,6 +49,7 @@ public class RuleRevision {
     }
 
     public UUID getId() { return id; }
+    public UUID getBrainId() { return brainId; }
     public String getRuleKey() { return ruleKey; }
     public String getContent() { return content; }
     public OffsetDateTime getCreatedAt() { return createdAt; }

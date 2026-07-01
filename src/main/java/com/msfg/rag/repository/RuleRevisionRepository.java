@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public interface RuleRevisionRepository extends JpaRepository<RuleRevision, UUID> {
 
-    Optional<RuleRevision> findFirstByRuleKeyOrderByCreatedAtDescIdDesc(String ruleKey);
+    Optional<RuleRevision> findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(UUID brainId, String ruleKey);
 
-    List<RuleRevision> findTop20ByRuleKeyOrderByCreatedAtDescIdDesc(String ruleKey);
+    List<RuleRevision> findTop20ByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(UUID brainId, String ruleKey);
 }

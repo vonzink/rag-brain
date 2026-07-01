@@ -19,6 +19,7 @@ import org.testcontainers.utility.DockerImageName;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
@@ -45,7 +46,7 @@ class BrainProfileRepositoryTest {
         BrainProfile profile = profiles.findByBrainId(TestBrains.DEFAULT_ID).orElseThrow();
         assertEquals(BrainMode.PUBLIC_SITE, profile.getMode());
         assertEquals(0.90, profile.getConfidenceTarget());
-        assertTrue(profile.isPublicEnabled());
+        assertFalse(profile.isPublicEnabled());
     }
 
     @Test

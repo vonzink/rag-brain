@@ -114,6 +114,34 @@ class ConnectorAuthServiceTest {
         assertEquals("200", event.getValue().getStatus());
     }
 
+    @Test
+    void requireRejectsDisallowedPeerHostWhenPeerAllowlistConfigured() {
+        String token = "rb_conn_known";
+        BrainConnectorClient client = client(token, true, List.of(ConnectorScope.ASK_PUBLIC));
+        client.setAllowedPeerHosts(List.of("trusted.peer.local"));
+        when(clients.findByTokenHash(ConnectorAuthService.hashToken(token))).thenReturn(Optional.of(client));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.require("Bearer " + token, ConnectorScope.ASK_PUBLIC,
+                        TestBrains.DEFAULT_ID, "evil.peer.local", "ASK"));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+    }
+
+    @Test
+    void requireRejectsDisallowedBrowserOriginWhenOriginAllowlistConfigured() {
+        String token = "rb_conn_known";
+        BrainConnectorClient client = client(token, true, List.of(ConnectorScope.ASK_PUBLIC));
+        client.setAllowedOrigins(List.of("https://trusted.example.com"));
+        when(clients.findByTokenHash(ConnectorAuthService.hashToken(token))).thenReturn(Optional.of(client));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.require("Bearer " + token, ConnectorScope.ASK_PUBLIC,
+                        TestBrains.DEFAULT_ID, "api.example.com", "https://evil.example.com", "ASK"));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+    }
+
     private static BrainConnectorClient client(String token, boolean enabled, List<String> scopes) {
         BrainConnectorClient client = new BrainConnectorClient(
                 UUID.randomUUID(), "Agent", "MCP_AGENT", ConnectorAuthService.hashToken(token));

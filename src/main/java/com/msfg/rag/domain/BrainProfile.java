@@ -69,7 +69,7 @@ public class BrainProfile {
     private String disclaimer = "This answer is generated from approved source context and may be incomplete.";
 
     @Column(name = "public_enabled", nullable = false)
-    private boolean publicEnabled = true;
+    private boolean publicEnabled = false;
 
     @Column(name = "public_token_hash", length = 128)
     private String publicTokenHash;

@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
-import { api } from "../api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { api, brainsApi } from "../api";
 import { ErrorNote, Pill } from "../components";
-import { RuleRevisionDto, RulesResponse, RuleState } from "../types";
+import { BrainAdminDto, RuleRevisionDto, RulesResponse, RuleState } from "../types";
 
 // ── per-tier editor ───────────────────────────────────────────────────────────
 
 interface TierProps {
   tier: "hard" | "guidance";
   state: RuleState;
+  brainParam: string;
   onSaved: (fresh: RulesResponse) => void;
 }
 
-function TierCard({ tier, state, onSaved }: TierProps) {
+function TierCard({ tier, state, brainParam, onSaved }: TierProps) {
   const fullKey = tier === "hard" ? "rules.hard" : "rules.guidance";
   const [draft, setDraft]         = useState(state.content);
   const [saving, setSaving]       = useState(false);
@@ -23,6 +24,11 @@ function TierCard({ tier, state, onSaved }: TierProps) {
 
   // keep draft in sync if parent refreshes
   useEffect(() => { setDraft(state.content); }, [state.content]);
+  useEffect(() => {
+    setHistOpen(false);
+    setHistory(null);
+    setHistError(null);
+  }, [brainParam]);
 
   const dirty = draft !== state.content;
 
@@ -31,7 +37,7 @@ function TierCard({ tier, state, onSaved }: TierProps) {
     setError(null);
     try {
       const fresh = await api.put<RulesResponse>(
-        `/api/ai/admin/rules/${fullKey}`, { content: draft });
+        `/api/ai/admin/rules/${fullKey}${brainParam}`, { content: draft });
       onSaved(fresh);
     } catch (e) {
       setError((e as Error).message);
@@ -45,7 +51,7 @@ function TierCard({ tier, state, onSaved }: TierProps) {
     setError(null);
     try {
       const fresh = await api.post<RulesResponse>(
-        `/api/ai/admin/rules/${fullKey}/revert`, {});
+        `/api/ai/admin/rules/${fullKey}/revert${brainParam}`, {});
       onSaved(fresh);
     } catch (e) {
       setError((e as Error).message);
@@ -61,7 +67,7 @@ function TierCard({ tier, state, onSaved }: TierProps) {
     setHistError(null);
     try {
       const rows = await api.get<RuleRevisionDto[]>(
-        `/api/ai/admin/rules/${fullKey}/history`);
+        `/api/ai/admin/rules/${fullKey}/history${brainParam}`);
       setHistory(rows);
     } catch (e) {
       setHistError((e as Error).message);
@@ -162,23 +168,47 @@ function TierCard({ tier, state, onSaved }: TierProps) {
 // ── main screen ───────────────────────────────────────────────────────────────
 
 export default function Rules() {
+  const [brains, setBrains]       = useState<BrainAdminDto[]>([]);
+  const [selectedSlug, setSelectedSlug] = useState("");
   const [rules, setRules]         = useState<RulesResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [preview, setPreview]     = useState<string | null>(null);
   const [prevError, setPrevError] = useState<string | null>(null);
   const [prevLoading, setPrevLoading] = useState(false);
 
+  useEffect(() => {
+    brainsApi
+      .list()
+      .then((list) => {
+        setBrains(list);
+        setSelectedSlug((current) => {
+          if (current && list.some((brain) => brain.slug === current)) return current;
+          return list.find((brain) => brain.isDefault)?.slug ?? list[0]?.slug ?? "";
+        });
+      })
+      .catch((e) => setLoadError((err) => err ?? (e as Error).message));
+  }, []);
+
+  const brainParam = useMemo(
+    () => selectedSlug ? `?brain=${encodeURIComponent(selectedSlug)}` : "",
+    [selectedSlug],
+  );
+
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const data = await api.get<RulesResponse>("/api/ai/admin/rules");
+      const data = await api.get<RulesResponse>(`/api/ai/admin/rules${brainParam}`);
       setRules(data);
     } catch (e) {
       setLoadError((e as Error).message);
     }
-  }, []);
+  }, [brainParam]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    setPreview(null);
+    setPrevError(null);
+  }, [brainParam]);
 
   function handleSaved(fresh: RulesResponse) {
     setRules(fresh);
@@ -189,7 +219,7 @@ export default function Rules() {
     setPrevError(null);
     setPreview(null);
     try {
-      const data = await api.get<{ prompt: string }>("/api/ai/admin/rules/preview");
+      const data = await api.get<{ prompt: string }>(`/api/ai/admin/rules/preview${brainParam}`);
       setPreview(data.prompt);
     } catch (e) {
       setPrevError((e as Error).message);
@@ -204,6 +234,14 @@ export default function Rules() {
         <h1>Rules</h1>
         <span className="muted">live within ~10 s</span>
         <div className="actions">
+          <select value={selectedSlug} onChange={(e) => setSelectedSlug(e.target.value)}>
+            {brains.length === 0 && <option value="">Default brain</option>}
+            {brains.map((brain) => (
+              <option key={brain.id} value={brain.slug}>
+                {brain.displayName} ({brain.slug})
+              </option>
+            ))}
+          </select>
           <button onClick={fetchPreview} disabled={prevLoading}>
             {prevLoading ? "Loading preview…" : "Preview full prompt"}
           </button>
@@ -218,8 +256,8 @@ export default function Rules() {
 
       {rules !== null && (
         <>
-          <TierCard tier="hard"     state={rules.hard}     onSaved={handleSaved} />
-          <TierCard tier="guidance" state={rules.guidance} onSaved={handleSaved} />
+          <TierCard tier="hard"     state={rules.hard}     brainParam={brainParam} onSaved={handleSaved} />
+          <TierCard tier="guidance" state={rules.guidance} brainParam={brainParam} onSaved={handleSaved} />
         </>
       )}
 

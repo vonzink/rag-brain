@@ -7,11 +7,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Live effective text for the two owner-editable rule blocks, read through a
@@ -43,7 +45,7 @@ public class RulesService {
 
     // ── cache ─────────────────────────────────────────────────────────────────
 
-    private volatile Map<String, Optional<RuleRevision>> cache = Map.of();
+    private volatile Map<UUID, Map<String, Optional<RuleRevision>>> cache = Map.of();
     private volatile long cachedAtNanos = Long.MIN_VALUE;
 
     public RulesService(RuleRevisionRepository repo, DomainPackRegistry registry) {
@@ -54,32 +56,32 @@ public class RulesService {
     // ── public accessors ──────────────────────────────────────────────────────
 
     public String effectiveHard(UUID brainId) {
-        return effective("rules.hard", registry.bundle(brainId).pack().hardRules());
+        return effective(brainId, "rules.hard", () -> registry.bundle(brainId).pack().hardRules());
     }
 
     public String effectiveGuidance(UUID brainId) {
-        return effective("rules.guidance", registry.bundle(brainId).pack().guidance());
+        return effective(brainId, "rules.guidance", () -> registry.bundle(brainId).pack().guidance());
     }
 
     /** Per-key state map for the admin API and dashboard. */
     public Map<String, RuleState> state(UUID brainId) {
         var pack = registry.bundle(brainId).pack();
-        Map<String, Optional<RuleRevision>> snap = snapshot();
+        Map<String, Optional<RuleRevision>> snap = snapshot(brainId);
         return Map.of(
                 "rules.hard",     toState("rules.hard",     snap.get("rules.hard"),     pack.hardRules()),
                 "rules.guidance", toState("rules.guidance", snap.get("rules.guidance"), pack.guidance()));
     }
 
     /** History (newest-first, up to 20 revisions) for a validated key. */
-    public List<RuleRevision> history(String key) {
+    public List<RuleRevision> history(UUID brainId, String key) {
         requireKnownKey(key);
-        return repo.findTop20ByRuleKeyOrderByCreatedAtDescIdDesc(key);
+        return repo.findTop20ByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(brainId, key);
     }
 
     // ── mutation ──────────────────────────────────────────────────────────────
 
     @Transactional
-    public void save(String key, String content, String updatedBy) {
+    public void save(UUID brainId, String key, String content, String updatedBy) {
         requireKnownKey(key);
         if (content == null || content.isBlank()) {
             throw new IllegalArgumentException("Content must be non-blank for key: " + key);
@@ -88,14 +90,14 @@ public class RulesService {
             throw new IllegalArgumentException(
                     "Content exceeds " + CONTENT_MAX_CHARS + " characters for key: " + key);
         }
-        repo.save(new RuleRevision(key, content, updatedBy));
+        repo.save(new RuleRevision(brainId, key, content, updatedBy));
         invalidate();
     }
 
     @Transactional
-    public void revert(String key, String updatedBy) {
+    public void revert(UUID brainId, String key, String updatedBy) {
         requireKnownKey(key);
-        repo.save(new RuleRevision(key, null, updatedBy));
+        repo.save(new RuleRevision(brainId, key, null, updatedBy));
         invalidate();
     }
 
@@ -105,12 +107,12 @@ public class RulesService {
 
     // ── private helpers ───────────────────────────────────────────────────────
 
-    private String effective(String key, String packDefault) {
-        Optional<RuleRevision> latest = snapshot().get(key);
+    private String effective(UUID brainId, String key, Supplier<String> packDefault) {
+        Optional<RuleRevision> latest = snapshot(brainId).get(key);
         if (latest != null && latest.isPresent() && latest.get().getContent() != null) {
             return latest.get().getContent();
         }
-        return packDefault;
+        return packDefault.get();
     }
 
     private RuleState toState(String key, Optional<RuleRevision> latest, String packDefault) {
@@ -132,15 +134,26 @@ public class RulesService {
      * expression to avoid the overflow that {@code now - Long.MIN_VALUE} would
      * produce on a freshly-initialised (or invalidated) instance.
      */
-    private Map<String, Optional<RuleRevision>> snapshot() {
+    private Map<String, Optional<RuleRevision>> snapshot(UUID brainId) {
         long now = System.nanoTime();
+        Map<UUID, Map<String, Optional<RuleRevision>>> local = cache;
         if (cachedAtNanos == Long.MIN_VALUE || now - cachedAtNanos > CACHE_TTL_NANOS) {
-            cache = Map.of(
-                    "rules.hard",     repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc("rules.hard"),
-                    "rules.guidance", repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc("rules.guidance"));
+            local = Map.of();
+        } else if (local.containsKey(brainId)) {
+            return local.get(brainId);
+        }
+
+        Map<String, Optional<RuleRevision>> fresh = Map.of(
+                "rules.hard",     repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(brainId, "rules.hard"),
+                "rules.guidance", repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(brainId, "rules.guidance"));
+
+        Map<UUID, Map<String, Optional<RuleRevision>>> next = new HashMap<>(local);
+        next.put(brainId, fresh);
+        cache = Map.copyOf(next);
+        if (cachedAtNanos == Long.MIN_VALUE || now - cachedAtNanos > CACHE_TTL_NANOS) {
             cachedAtNanos = now;
         }
-        return cache;
+        return fresh;
     }
 
     private void requireKnownKey(String key) {

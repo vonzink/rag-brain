@@ -9,6 +9,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static com.msfg.rag.TestBrains.DEFAULT_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,7 +37,8 @@ class RulesServiceTest {
 
     @Test
     void effectiveFallsBackToPackDefaults() {
-        when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(any())).thenReturn(Optional.empty());
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(eq(DEFAULT_ID), any()))
+                .thenReturn(Optional.empty());
         RulesService s = service();
 
         assertEquals(TestPacks.msfg().hardRules(), s.effectiveHard(DEFAULT_ID));
@@ -51,10 +53,10 @@ class RulesServiceTest {
 
     @Test
     void latestRevisionOverridesPack() {
-        RuleRevision rev = new RuleRevision("rules.hard", "CUSTOM HARD", "tester");
-        when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(eq("rules.hard")))
+        RuleRevision rev = new RuleRevision(DEFAULT_ID, "rules.hard", "CUSTOM HARD", "tester");
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(eq(DEFAULT_ID), eq("rules.hard")))
                 .thenReturn(Optional.of(rev));
-        when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(eq("rules.guidance")))
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(eq(DEFAULT_ID), eq("rules.guidance")))
                 .thenReturn(Optional.empty());
         RulesService s = service();
 
@@ -69,13 +71,14 @@ class RulesServiceTest {
     void nullContentRevisionRevertsToPack() {
         // Use a mock so @PrePersist-populated fields are present without a DB
         RuleRevision revert = mock(RuleRevision.class);
+        when(revert.getBrainId()).thenReturn(DEFAULT_ID);
         when(revert.getRuleKey()).thenReturn("rules.hard");
         when(revert.getContent()).thenReturn(null);
         when(revert.getCreatedBy()).thenReturn("admin-api");
         when(revert.getCreatedAt()).thenReturn(OffsetDateTime.now());
-        when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(eq("rules.hard")))
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(eq(DEFAULT_ID), eq("rules.hard")))
                 .thenReturn(Optional.of(revert));
-        when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(eq("rules.guidance")))
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(eq(DEFAULT_ID), eq("rules.guidance")))
                 .thenReturn(Optional.empty());
         RulesService s = service();
 
@@ -94,28 +97,32 @@ class RulesServiceTest {
     @Test
     void saveAppendsAndInvalidates() {
         // Before save: empty
-        when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(any())).thenReturn(Optional.empty());
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(eq(DEFAULT_ID), any()))
+                .thenReturn(Optional.empty());
         RulesService s = service();
         s.effectiveHard(DEFAULT_ID); // prime cache → 1 findFirst for rules.hard
 
         // After save the cache is invalidated; next read re-queries
-        s.save("rules.hard", "X", "admin-api");
+        s.save(DEFAULT_ID, "rules.hard", "X", "admin-api");
 
         verify(repo).save(argThat(r ->
-                r.getRuleKey().equals("rules.hard")
+                DEFAULT_ID.equals(r.getBrainId())
+                        && r.getRuleKey().equals("rules.hard")
                         && "X".equals(r.getContent())
                         && "admin-api".equals(r.getCreatedBy())));
 
         s.effectiveHard(DEFAULT_ID); // must hit repo again
         // prime + post-save re-read = 2 findFirst calls for rules.hard
-        verify(repo, times(2)).findFirstByRuleKeyOrderByCreatedAtDescIdDesc("rules.hard");
+        verify(repo, times(2))
+                .findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(DEFAULT_ID, "rules.hard");
     }
 
     // ── 5. Cache suppresses extra repo reads within TTL ──────────────────────
 
     @Test
     void cachesWithinTtl() {
-        when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(any())).thenReturn(Optional.empty());
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(eq(DEFAULT_ID), any()))
+                .thenReturn(Optional.empty());
         RulesService s = service();
 
         s.effectiveHard(DEFAULT_ID);
@@ -124,23 +131,26 @@ class RulesServiceTest {
         s.effectiveGuidance(DEFAULT_ID);
 
         // Both keys loaded in the initial snapshot; subsequent calls must not re-read
-        verify(repo, times(1)).findFirstByRuleKeyOrderByCreatedAtDescIdDesc("rules.hard");
-        verify(repo, times(1)).findFirstByRuleKeyOrderByCreatedAtDescIdDesc("rules.guidance");
+        verify(repo, times(1))
+                .findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(DEFAULT_ID, "rules.hard");
+        verify(repo, times(1))
+                .findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(DEFAULT_ID, "rules.guidance");
     }
 
     // ── 6. save() rejects unknown key and blank content ──────────────────────
 
     @Test
     void rejectsUnknownKeyAndBlankContent() {
-        when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(any())).thenReturn(Optional.empty());
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(eq(DEFAULT_ID), any()))
+                .thenReturn(Optional.empty());
         RulesService s = service();
 
         assertThrows(IllegalArgumentException.class,
-                () -> s.save("nope", "some content", "admin-api"),
+                () -> s.save(DEFAULT_ID, "nope", "some content", "admin-api"),
                 "unknown key must be rejected");
 
         assertThrows(IllegalArgumentException.class,
-                () -> s.save("rules.hard", "  ", "admin-api"),
+                () -> s.save(DEFAULT_ID, "rules.hard", "  ", "admin-api"),
                 "blank content must be rejected");
 
         verify(repo, never()).save(any());
@@ -150,14 +160,33 @@ class RulesServiceTest {
 
     @Test
     void revertAppendsNullRevision() {
-        when(repo.findFirstByRuleKeyOrderByCreatedAtDescIdDesc(any())).thenReturn(Optional.empty());
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(eq(DEFAULT_ID), any()))
+                .thenReturn(Optional.empty());
         RulesService s = service();
 
-        s.revert("rules.hard", "admin-api");
+        s.revert(DEFAULT_ID, "rules.hard", "admin-api");
 
         verify(repo).save(argThat(r ->
-                r.getRuleKey().equals("rules.hard")
+                DEFAULT_ID.equals(r.getBrainId())
+                        && r.getRuleKey().equals("rules.hard")
                         && r.getContent() == null
                         && "admin-api".equals(r.getCreatedBy())));
+    }
+
+    @Test
+    void differentBrainsResolveSeparateRuleRevisions() {
+        UUID otherBrainId = UUID.randomUUID();
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(DEFAULT_ID, "rules.hard"))
+                .thenReturn(Optional.of(new RuleRevision(DEFAULT_ID, "rules.hard", "DEFAULT HARD", "tester")));
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(DEFAULT_ID, "rules.guidance"))
+                .thenReturn(Optional.empty());
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(otherBrainId, "rules.hard"))
+                .thenReturn(Optional.of(new RuleRevision(otherBrainId, "rules.hard", "OTHER HARD", "tester")));
+        when(repo.findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(otherBrainId, "rules.guidance"))
+                .thenReturn(Optional.empty());
+        RulesService s = service();
+
+        assertEquals("DEFAULT HARD", s.effectiveHard(DEFAULT_ID));
+        assertEquals("OTHER HARD", s.effectiveHard(otherBrainId));
     }
 }

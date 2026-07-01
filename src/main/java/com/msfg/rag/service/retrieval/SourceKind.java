@@ -1,14 +1,13 @@
 package com.msfg.rag.service.retrieval;
 
 /**
- * The retrieval indexes a {@link RetrievalPlan} can select (spec §7.4). Phase 6
- * uses these to decide which side-indexes to collect from; {@link SourceKind#CORPUS}
- * is always present (the existing hybrid corpus retrieval is unchanged).
+ * The retrieval indexes a {@link RetrievalPlan} can select. {@link SourceKind#CORPUS}
+ * is always present; side indexes are collected when the plan asks for them and
+ * corpus evidence is strong enough to answer.
  *
  * <p>{@code PAGE_GUIDE} and {@code LINK_REGISTRY} drive collection from the
  * already-merged cached snapshots ({@code PageGuideService.activePageGuides()} /
- * {@code SourceLinkService.activeLinks()}); the collected evidence is logged only
- * in Phase 6 and consumed by Phase 8.
+ * {@code SourceLinkService.activeLinks()}).
  */
 public enum SourceKind {
 

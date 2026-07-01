@@ -17,7 +17,6 @@ import com.msfg.rag.repository.ConversationRepository;
 import com.msfg.rag.repository.MessageRepository;
 import com.msfg.rag.service.ai.AnswerValidationService;
 import com.msfg.rag.service.ai.Intent;
-import com.msfg.rag.service.ai.IntentRouterService;
 import com.msfg.rag.service.ai.ModelAnswer;
 import com.msfg.rag.service.ai.ModelRouterService;
 import com.msfg.rag.service.ai.OutputContractService;
@@ -27,13 +26,13 @@ import com.msfg.rag.service.ai.QuestionClassifierService;
 import com.msfg.rag.service.audit.AuditLogService;
 import com.msfg.rag.service.audit.RagTraceService;
 import com.msfg.rag.service.clarification.ClarificationDecision;
+import com.msfg.rag.service.retrieval.AgenticRetrievalService;
+import com.msfg.rag.service.retrieval.AgenticRetrievalService.AgenticPlan;
+import com.msfg.rag.service.retrieval.AgenticRetrievalService.AgenticRetrievalResult;
 import com.msfg.rag.service.retrieval.PlannedEvidence;
 import com.msfg.rag.service.retrieval.RetrievalPlan;
-import com.msfg.rag.service.retrieval.RetrievalPlannerService;
 import com.msfg.rag.service.retrieval.RetrievalResult;
-import com.msfg.rag.service.retrieval.RetrievalService;
 import com.msfg.rag.service.retrieval.RetrievedChunk;
-import com.msfg.rag.service.retrieval.VocabularyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -62,7 +61,6 @@ public class AskService {
     private final DomainPackRegistry packRegistry;
 
     private final QuestionClassifierService questionClassifierService;
-    private final RetrievalService retrievalService;
     private final PromptBuilderService promptBuilderService;
     private final ModelRouterService modelRouterService;
     private final AnswerValidationService answerValidationService;
@@ -71,15 +69,12 @@ public class AskService {
     private final MessageRepository messageRepository;
     private final AnswerSourceRepository answerSourceRepository;
     private final ObjectMapper objectMapper;
-    private final IntentRouterService intentRouterService;
-    private final RetrievalPlannerService retrievalPlannerService;
     private final OutputContractService outputContractService;
-    private final VocabularyService vocabularyService;
     private final RagTraceService ragTraceService;
+    private final AgenticRetrievalService agenticRetrievalService;
 
     public AskService(DomainPackRegistry packRegistry,
                       QuestionClassifierService questionClassifierService,
-                      RetrievalService retrievalService,
                       PromptBuilderService promptBuilderService,
                       ModelRouterService modelRouterService,
                       AnswerValidationService answerValidationService,
@@ -88,14 +83,11 @@ public class AskService {
                       MessageRepository messageRepository,
                       AnswerSourceRepository answerSourceRepository,
                       ObjectMapper objectMapper,
-                      IntentRouterService intentRouterService,
-                      RetrievalPlannerService retrievalPlannerService,
                       OutputContractService outputContractService,
-                      VocabularyService vocabularyService,
-                      RagTraceService ragTraceService) {
+                      RagTraceService ragTraceService,
+                      AgenticRetrievalService agenticRetrievalService) {
         this.packRegistry = packRegistry;
         this.questionClassifierService = questionClassifierService;
-        this.retrievalService = retrievalService;
         this.promptBuilderService = promptBuilderService;
         this.modelRouterService = modelRouterService;
         this.answerValidationService = answerValidationService;
@@ -104,11 +96,9 @@ public class AskService {
         this.messageRepository = messageRepository;
         this.answerSourceRepository = answerSourceRepository;
         this.objectMapper = objectMapper;
-        this.intentRouterService = intentRouterService;
-        this.retrievalPlannerService = retrievalPlannerService;
         this.outputContractService = outputContractService;
-        this.vocabularyService = vocabularyService;
         this.ragTraceService = ragTraceService;
+        this.agenticRetrievalService = agenticRetrievalService;
     }
 
     public AskResponse ask(AskRequest request, UUID brainId) {
@@ -137,16 +127,16 @@ public class AskService {
                     null, null, null, PlannedEvidence.empty(), visibility);
         }
 
-        Intent intent = intentRouterService.route(
-                request.question(), request.pageRoute(), request.surface());
-        RetrievalPlan plan = retrievalPlannerService.plan(
-                intent, request.pageRoute(), request.surface());
-        String rewrittenQuestion = vocabularyService.previewExpansion(brainId, request.question());
+        AgenticPlan agenticPlan = agenticRetrievalService.plan(
+                request.question(), brainId, request.pageRoute(), request.surface());
+        Intent intent = agenticPlan.intent();
+        RetrievalPlan plan = agenticPlan.retrievalPlan();
+        String rewrittenQuestion = agenticPlan.rewrittenQuestion();
 
         // 0b. Calculation guardrail: questions that ask the assistant to produce a
         //     specific number must not be answered from retrieved prose (numeric
         //     hallucination risk). Escalate to a human before any LLM spend.
-        if (intentRouterService.isCalculationRequest(request.question())) {
+        if (agenticPlan.calculationRequest()) {
             return refuse(conversation, request, brainId, RetrievalResult.empty(),
                     canned.escalation(), null, "calculation request", rewrittenQuestion,
                     intent, plan, PlannedEvidence.empty(), visibility);
@@ -155,9 +145,10 @@ public class AskService {
         // 1. Retrieve approved source context. A transient embedding/provider
         //    error becomes a graceful escalation, not a 500. A genuine
         //    misconfiguration ("not configured") still surfaces as 503.
-        RetrievalResult retrieval;
+        AgenticRetrievalResult agenticRetrieval;
         try {
-            retrieval = retrievalService.retrieve(request.question(), brainId, visibility);
+            agenticRetrieval = agenticRetrievalService.retrieve(agenticPlan, request.question(), brainId,
+                    request.pageRoute(), request.surface(), visibility);
         } catch (RuntimeException e) {
             if (isNotConfigured(e)) {
                 throw e;
@@ -168,15 +159,14 @@ public class AskService {
                     null, "retrieval provider error", rewrittenQuestion, intent, plan,
                     PlannedEvidence.empty(), visibility);
         }
+        RetrievalResult retrieval = agenticRetrieval.retrieval();
+        PlannedEvidence sideEvidence = agenticRetrieval.sideEvidence();
 
         // 2. Refuse early when there is no reliable source material.
         if (!retrieval.sufficientEvidence()) {
             return refuse(conversation, request, brainId, retrieval, canned.noSource(), null,
-                    "insufficient evidence", rewrittenQuestion, intent, plan, PlannedEvidence.empty(), visibility);
+                    "insufficient evidence", rewrittenQuestion, intent, plan, sideEvidence, visibility);
         }
-
-        PlannedEvidence sideEvidence = retrievalPlannerService.collect(
-                brainId, plan, request.question(), request.pageRoute(), request.surface());
 
         // 3. Build the locked prompt and call the model (with fallback). When the
         //    answer provider (and its fallback) fail, return a compliance
@@ -289,7 +279,7 @@ public class AskService {
                 request.question(), rewrittenQuestion, intent, plan, retrieval.chunks(), sideEvidence,
                 citations, modelAnswer.answer(), confidence, escalate,
                 ResponseType.ANSWER, ClarificationDecision.answer(), visibility, Map.of(),
-                Map.of("retrieval_confidence", retrieval.confidence(), "source_count", retrieval.chunks().size()),
+                agenticRetrieval.confidenceReason(),
                 "valid").getId();
 
         return new AskResponse(conversation.getId(), modelAnswer.answer(), citations,

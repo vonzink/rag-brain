@@ -36,8 +36,9 @@ public class FederationController {
 
     @GetMapping("/brains")
     public List<FederationDtos.BrainSummary> brains(@RequestHeader(value = "Authorization", required = false) String authorization,
-                                                    @RequestHeader(value = "Host", required = false) String host) {
-        auth.require(authorization, ConnectorScope.BRAINS_LIST, null, host, "BRAINS_LIST");
+                                                    @RequestHeader(value = "Host", required = false) String host,
+                                                    @RequestHeader(value = "Origin", required = false) String origin) {
+        auth.require(authorization, ConnectorScope.BRAINS_LIST, null, host, origin, "BRAINS_LIST");
         return brains.findAll().stream()
                 .filter(Brain::isActive)
                 .map(FederationController::summary)
@@ -47,18 +48,20 @@ public class FederationController {
     @GetMapping("/brains/{slug}")
     public FederationDtos.BrainSummary brain(@PathVariable String slug,
                                              @RequestHeader(value = "Authorization", required = false) String authorization,
-                                             @RequestHeader(value = "Host", required = false) String host) {
+                                             @RequestHeader(value = "Host", required = false) String host,
+                                             @RequestHeader(value = "Origin", required = false) String origin) {
         Brain brain = requireBrain(slug);
-        auth.require(authorization, ConnectorScope.BRAIN_READ, brain.getId(), host, "BRAIN_READ");
+        auth.require(authorization, ConnectorScope.BRAIN_READ, brain.getId(), host, origin, "BRAIN_READ");
         return summary(brain);
     }
 
     @GetMapping("/brains/{slug}/readiness")
     public BrainReadinessController.ReadinessDto readiness(@PathVariable String slug,
                                                            @RequestHeader(value = "Authorization", required = false) String authorization,
-                                                           @RequestHeader(value = "Host", required = false) String host) {
+                                                           @RequestHeader(value = "Host", required = false) String host,
+                                                           @RequestHeader(value = "Origin", required = false) String origin) {
         Brain brain = requireBrain(slug);
-        auth.require(authorization, ConnectorScope.READINESS_READ, brain.getId(), host, "READINESS");
+        auth.require(authorization, ConnectorScope.READINESS_READ, brain.getId(), host, origin, "READINESS");
         return readiness.readiness(brain.getId());
     }
 
@@ -66,9 +69,10 @@ public class FederationController {
     public PublicAskResponse ask(@PathVariable String slug,
                                  @RequestHeader(value = "Authorization", required = false) String authorization,
                                  @RequestHeader(value = "Host", required = false) String host,
+                                 @RequestHeader(value = "Origin", required = false) String origin,
                                  @RequestBody FederationDtos.FederationAskRequest request) {
         Brain brain = requireBrain(slug);
-        auth.require(authorization, ConnectorScope.ASK_PUBLIC, brain.getId(), host, "ASK");
+        auth.require(authorization, ConnectorScope.ASK_PUBLIC, brain.getId(), host, origin, "ASK");
         return query.ask(brain, request);
     }
 
@@ -76,9 +80,10 @@ public class FederationController {
     public FederationDtos.FederationRetrieveResponse retrieve(@PathVariable String slug,
                                                               @RequestHeader(value = "Authorization", required = false) String authorization,
                                                               @RequestHeader(value = "Host", required = false) String host,
+                                                              @RequestHeader(value = "Origin", required = false) String origin,
                                                               @RequestBody FederationDtos.FederationRetrieveRequest request) {
         Brain brain = requireBrain(slug);
-        auth.require(authorization, ConnectorScope.RETRIEVE_PUBLIC, brain.getId(), host, "RETRIEVE");
+        auth.require(authorization, ConnectorScope.RETRIEVE_PUBLIC, brain.getId(), host, origin, "RETRIEVE");
         return query.retrieve(brain, request);
     }
 

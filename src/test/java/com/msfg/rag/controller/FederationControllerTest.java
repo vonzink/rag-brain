@@ -49,10 +49,11 @@ class FederationControllerTest {
         when(brains.findBySlug("generic")).thenReturn(Optional.of(brain));
         when(query.ask(brain, req)).thenReturn(response);
 
-        assertEquals(response, controller.ask("generic", "Bearer rb_conn_ok", "peer.local", req));
+        assertEquals(response, controller.ask("generic", "Bearer rb_conn_ok",
+                "peer.local", "https://trusted.example.com", req));
 
         verify(auth).require("Bearer rb_conn_ok", ConnectorScope.ASK_PUBLIC,
-                TestBrains.DEFAULT_ID, "peer.local", "ASK");
+                TestBrains.DEFAULT_ID, "peer.local", "https://trusted.example.com", "ASK");
         verify(query).ask(brain, req);
     }
 
@@ -62,10 +63,11 @@ class FederationControllerTest {
         when(brains.findBySlug("generic")).thenReturn(Optional.of(brain));
         doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "scope missing"))
                 .when(auth).require("Bearer rb_conn_ok", ConnectorScope.ASK_PUBLIC,
-                        TestBrains.DEFAULT_ID, "peer.local", "ASK");
+                        TestBrains.DEFAULT_ID, "peer.local", "https://trusted.example.com", "ASK");
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> controller.ask("generic", "Bearer rb_conn_ok", "peer.local",
+                () -> controller.ask("generic", "Bearer rb_conn_ok",
+                        "peer.local", "https://trusted.example.com",
                         new FederationDtos.FederationAskRequest(null, "s1", "Q", "/", Map.of())));
 
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
@@ -77,7 +79,7 @@ class FederationControllerTest {
         when(brains.findBySlug("generic")).thenReturn(Optional.of(brain));
         doThrow(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Connector token is required"))
                 .when(auth).require(null, ConnectorScope.ASK_PUBLIC,
-                        TestBrains.DEFAULT_ID, "peer.local", "ASK");
+                        TestBrains.DEFAULT_ID, "peer.local", null, "ASK");
         MockMvc mvc = MockMvcBuilders
                 .standaloneSetup(controller)
                 .setControllerAdvice(new com.msfg.rag.exception.GlobalExceptionHandler())
@@ -107,10 +109,11 @@ class FederationControllerTest {
         when(brains.findBySlug("generic")).thenReturn(Optional.of(brain));
         when(query.retrieve(brain, req)).thenReturn(response);
 
-        assertEquals(response, controller.retrieve("generic", "Bearer rb_conn_ok", "peer.local", req));
+        assertEquals(response, controller.retrieve("generic", "Bearer rb_conn_ok",
+                "peer.local", "https://trusted.example.com", req));
 
         verify(auth).require("Bearer rb_conn_ok", ConnectorScope.RETRIEVE_PUBLIC,
-                TestBrains.DEFAULT_ID, "peer.local", "RETRIEVE");
+                TestBrains.DEFAULT_ID, "peer.local", "https://trusted.example.com", "RETRIEVE");
         verify(query).retrieve(brain, req);
     }
 

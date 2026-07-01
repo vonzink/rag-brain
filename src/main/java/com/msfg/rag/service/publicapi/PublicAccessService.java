@@ -35,6 +35,7 @@ public class PublicAccessService {
         if (!profile.isPublicEnabled() || profile.getMode() != BrainMode.PUBLIC_SITE) {
             throw new IllegalArgumentException("Public access is disabled for this brain");
         }
+        requireAllowedDomains(profile);
         if (token == null || token.isBlank() || profile.getPublicTokenHash() == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Public token is required");
         }
@@ -52,6 +53,10 @@ public class PublicAccessService {
     @Transactional
     public String rotateToken(UUID brainId) {
         BrainProfile profile = profiles.getOrCreate(brainId);
+        if (!profile.isPublicEnabled() || profile.getMode() != BrainMode.PUBLIC_SITE) {
+            throw new IllegalArgumentException("Public access must be enabled before generating a public token");
+        }
+        requireAllowedDomains(profile);
         byte[] bytes = new byte[24];
         RANDOM.nextBytes(bytes);
         String token = "rb_pub_" + HexFormat.of().formatHex(bytes);
@@ -66,6 +71,12 @@ public class PublicAccessService {
             return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {
             throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
+
+    private static void requireAllowedDomains(BrainProfile profile) {
+        if (profile.getAllowedDomains() == null || profile.getAllowedDomains().isEmpty()) {
+            throw new IllegalArgumentException("Allowed domains are required for public access");
         }
     }
 

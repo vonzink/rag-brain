@@ -11,6 +11,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import static com.msfg.rag.TestBrains.DEFAULT_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -30,19 +31,23 @@ class RuleRevisionRepositoryTest {
 
     @Test
     void latestRevisionWinsAndHistoryIsNewestFirst() {
-        repository.saveAndFlush(new RuleRevision("rules.hard", "v1", "test"));
-        repository.saveAndFlush(new RuleRevision("rules.hard", "v2", "test"));
-        repository.saveAndFlush(new RuleRevision("rules.guidance", "g1", "test"));
+        repository.saveAndFlush(new RuleRevision(DEFAULT_ID, "rules.hard", "v1", "test"));
+        repository.saveAndFlush(new RuleRevision(DEFAULT_ID, "rules.hard", "v2", "test"));
+        repository.saveAndFlush(new RuleRevision(DEFAULT_ID, "rules.guidance", "g1", "test"));
 
         assertEquals("v2", repository
-                .findFirstByRuleKeyOrderByCreatedAtDescIdDesc("rules.hard").orElseThrow().getContent());
-        assertEquals(2, repository.findTop20ByRuleKeyOrderByCreatedAtDescIdDesc("rules.hard").size());
+                .findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(DEFAULT_ID, "rules.hard")
+                .orElseThrow().getContent());
+        assertEquals(2, repository
+                .findTop20ByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(DEFAULT_ID, "rules.hard")
+                .size());
     }
 
     @Test
     void nullContentRevisionIsAllowedAsRevertMarker() {
-        repository.saveAndFlush(new RuleRevision("rules.hard", null, "test"));
+        repository.saveAndFlush(new RuleRevision(DEFAULT_ID, "rules.hard", null, "test"));
         assertNull(repository
-                .findFirstByRuleKeyOrderByCreatedAtDescIdDesc("rules.hard").orElseThrow().getContent());
+                .findFirstByBrainIdAndRuleKeyOrderByCreatedAtDescIdDesc(DEFAULT_ID, "rules.hard")
+                .orElseThrow().getContent());
     }
 }

@@ -15,22 +15,17 @@ import java.util.UUID;
  * question hits ({@link #plan}) and collects the matching side-evidence from the
  * already-merged cached registries ({@link #collect}).
  *
- * <p><b>Phase 6 scope (collect-only seam):</b> the corpus retrieval is unchanged
- * and is NOT executed here — {@code AskService} still calls
- * {@code retrievalService.retrieve(question)} directly. This planner adds the
- * SIDE indexes (page guides + source links), and the collected
- * {@link PlannedEvidence} is now consumed by {@code AskService} for prompt
- * guidance plus response/tracing chrome. Phase 8 is where the side-evidence
- * becomes fully first-class in the retrieval contract.
+ * <p>This planner stays pure: it does not execute corpus retrieval itself. The
+ * agentic orchestration layer uses the plan to decide when to collect side
+ * evidence after corpus evidence is strong enough.
  *
  * <p><b>Minimal by design:</b> {@link RetrievalPlan} carries only the index set —
  * weights and page-boost (spec §7.4) are deferred to Phase 7.
  *
- * <p><b>Phase 7:</b> {@code collect} now returns the side-evidence already
- * authority-ordered via {@link AuthorityFilterService#order} (links
- * PRIMARY→SECONDARY→BACKGROUND, page-guide order preserved). The caller uses
- * that ordered evidence immediately for prompt assembly and response/tracing
- * context, while Phase 8 broadens the contract around it.
+ * <p>{@code collect} returns side evidence already authority-ordered via
+ * {@link AuthorityFilterService#order} (links PRIMARY→SECONDARY→BACKGROUND,
+ * page-guide order preserved). The caller uses that ordered evidence for prompt
+ * assembly, response chrome, and tracing.
  */
 @Service
 public class RetrievalPlannerService {

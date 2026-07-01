@@ -40,24 +40,28 @@ class McpFacadeControllerTest {
                 null, List.of(), List.of(), List.of(), 0.91, null, UUID.randomUUID(),
                 "disclaimer", false);
         when(federation.ask(org.mockito.Mockito.eq("generic"), org.mockito.Mockito.eq("Bearer rb_conn_ok"),
-                org.mockito.Mockito.eq("peer.local"), org.mockito.Mockito.any()))
+                org.mockito.Mockito.eq("peer.local"), org.mockito.Mockito.eq("https://trusted.example.com"),
+                org.mockito.Mockito.any()))
                 .thenReturn(response);
 
-        Object result = controller.call("rag_brain_ask", "Bearer rb_conn_ok", "peer.local",
+        Object result = controller.call("rag_brain_ask", "Bearer rb_conn_ok",
+                "peer.local", "https://trusted.example.com",
                 Map.of("slug", "generic", "message", "What can you do?", "sessionId", "s1"));
 
         assertEquals(response, result);
         ArgumentCaptor<FederationDtos.FederationAskRequest> request =
                 ArgumentCaptor.forClass(FederationDtos.FederationAskRequest.class);
         verify(federation).ask(org.mockito.Mockito.eq("generic"), org.mockito.Mockito.eq("Bearer rb_conn_ok"),
-                org.mockito.Mockito.eq("peer.local"), request.capture());
+                org.mockito.Mockito.eq("peer.local"), org.mockito.Mockito.eq("https://trusted.example.com"),
+                request.capture());
         assertEquals("What can you do?", request.getValue().message());
     }
 
     @Test
     void unknownToolReturnsNotFound() {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> controller.call("missing_tool", "Bearer rb_conn_ok", "peer.local", Map.of()));
+                () -> controller.call("missing_tool", "Bearer rb_conn_ok",
+                        "peer.local", "https://trusted.example.com", Map.of()));
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }

@@ -69,6 +69,42 @@ class BrainProfileServiceTest {
                 ex.getMessage());
     }
 
+    @Test
+    void getOrCreateDefaultsToNotPublished() {
+        UUID brainId = UUID.randomUUID();
+        Brain brain = new Brain(brainId, "test-brain", "Test Brain");
+        when(brains.findById(brainId)).thenReturn(Optional.of(brain));
+        when(profiles.findByBrainId(brainId)).thenReturn(Optional.empty());
+
+        BrainProfile profile = service.getOrCreate(brainId);
+
+        assertEquals(false, profile.isPublicEnabled());
+        assertEquals(List.of(), profile.getAllowedDomains());
+    }
+
+    @Test
+    void updateRejectsPublicEnabledWithoutAllowedDomains() {
+        UUID brainId = UUID.randomUUID();
+        BrainProfileRequest req = request("PUBLIC_SITE", List.of());
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.update(brainId, req));
+
+        assertEquals("allowedDomains is required when public access is enabled", ex.getMessage());
+    }
+
+    @Test
+    void updateNormalizesAllowedDomainOriginsToHosts() {
+        UUID brainId = UUID.randomUUID();
+        BrainProfileRequest req = request("PUBLIC_SITE",
+                List.of("https://Example.com/path", "example.com", "https://www.example.com"));
+
+        BrainProfile profile = service.update(brainId, req);
+
+        assertEquals(List.of("example.com", "www.example.com"), profile.getAllowedDomains());
+    }
+
     private BrainProfileRequest request(String mode, List<String> allowedDomains) {
         return new BrainProfileRequest(
                 mode,

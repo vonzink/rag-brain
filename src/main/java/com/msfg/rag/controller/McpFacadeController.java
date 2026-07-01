@@ -38,15 +38,16 @@ public class McpFacadeController {
     public Object call(@PathVariable String toolName,
                        @RequestHeader(value = "Authorization", required = false) String authorization,
                        @RequestHeader(value = "Host", required = false) String host,
+                       @RequestHeader(value = "Origin", required = false) String origin,
                        @RequestBody Map<String, Object> input) {
         Map<String, Object> body = input == null ? Map.of() : input;
         return switch (toolName) {
-            case "rag_brain_list_brains" -> federation.brains(authorization, host);
-            case "rag_brain_readiness" -> federation.readiness(require(body, "slug"), authorization, host);
-            case "rag_brain_ask" -> federation.ask(require(body, "slug"), authorization, host,
+            case "rag_brain_list_brains" -> federation.brains(authorization, host, origin);
+            case "rag_brain_readiness" -> federation.readiness(require(body, "slug"), authorization, host, origin);
+            case "rag_brain_ask" -> federation.ask(require(body, "slug"), authorization, host, origin,
                     new FederationDtos.FederationAskRequest(conversationId(body), sessionId(body),
                             require(body, "message"), string(body, "pageRoute"), facts(body)));
-            case "rag_brain_retrieve" -> federation.retrieve(require(body, "slug"), authorization, host,
+            case "rag_brain_retrieve" -> federation.retrieve(require(body, "slug"), authorization, host, origin,
                     new FederationDtos.FederationRetrieveRequest(require(body, "question")));
             default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown MCP tool: " + toolName);
         };

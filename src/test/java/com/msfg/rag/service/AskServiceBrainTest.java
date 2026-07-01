@@ -19,6 +19,7 @@ import com.msfg.rag.service.ai.QuestionCategory;
 import com.msfg.rag.service.ai.QuestionClassifierService;
 import com.msfg.rag.service.audit.AuditLogService;
 import com.msfg.rag.service.audit.RagTraceService;
+import com.msfg.rag.service.retrieval.AgenticRetrievalService;
 import com.msfg.rag.service.retrieval.PlannedEvidence;
 import com.msfg.rag.service.retrieval.RetrievalResult;
 import com.msfg.rag.service.retrieval.RetrievalPlan;
@@ -96,10 +97,11 @@ class AskServiceBrainTest {
         });
         DomainPackRegistry registry = TestPacks.registryFor(java.util.Map.of(
                 BRAIN_A, TestPacks.msfg(), BRAIN_B, TestPacks.msfg()));
-        return new AskService(registry, classifier, retrieval, promptBuilder, router,
+        return new AskService(registry, classifier, promptBuilder, router,
                 new AnswerValidationService(registry), audit,
                 conversations, messages, sources, new ObjectMapper(),
-                intentRouter, planner, new OutputContractService(), vocabulary, trace);
+                new OutputContractService(), trace,
+                new AgenticRetrievalService(intentRouter, planner, vocabulary, retrieval));
     }
 
     private AskRequest request(UUID conversationId) {
