@@ -278,6 +278,22 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .sync-summary { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .sync-report { margin-bottom: 16px; }
 
+.quality-panel { margin-bottom: 16px; }
+.quality-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+.quality-metrics div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.quality-metrics strong { font-size: 18px; }
+.quality-warnings { margin: 12px 0 0; }
+
 /* Settings rows */
 .setting-row {
   display: flex;

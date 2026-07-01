@@ -82,7 +82,7 @@ management:
 # ------------------------------------------------------------
 # RAG Brain application configuration
 # ------------------------------------------------------------
-msfg:
+ragbrain:
   rag:
     # HTTP timeouts for outbound AI provider/embedding calls. Without these,
     # a hung provider blocks the request thread indefinitely. read-timeout-ms
@@ -119,7 +119,7 @@ msfg:
     admin:
       api-key: ${ADMIN_API_KEY:change-me-local-admin-key}
     cors:
-      # comma-separated; production example: https://msfg.us,https://www.msfg.us
+      # comma-separated; production example: https://example.com,https://www.example.com
       allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
     rate-limit:
       requests-per-minute: ${RATE_LIMIT_REQUESTS_PER_MINUTE:10}   # per IP on public ask endpoints
@@ -135,4 +135,4 @@ msfg:
 
 logging:
   level:
-    com.msfg.rag: INFO
+    com.ragbrain.rag: INFO

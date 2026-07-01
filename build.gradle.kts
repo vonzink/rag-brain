@@ -4,7 +4,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
 }
 
-group = "com.msfg"
+group = "com.ragbrain"
 version = "0.1.0"
 
 java {

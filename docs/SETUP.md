@@ -161,6 +161,13 @@ curl -sf -H "X-Admin-Api-Key: $ADMIN_API_KEY" \
   http://localhost:8091/api/ai/admin/stats
 ```
 
+Ingestion quality smoke test:
+
+```bash
+curl -sf -H "X-Admin-Api-Key: $ADMIN_API_KEY" \
+  http://localhost:8091/api/ai/admin/ingestion-quality
+```
+
 Readiness check for the default generic brain:
 
 ```bash
@@ -181,6 +188,8 @@ no public token, and no allowlisted website domain.
    - Upload a small PDF, Markdown, TXT, DOCX, or HTML file.
    - For public website testing, set `visibility=PUBLIC`.
    - For private/admin-only material, use `INTERNAL`.
+   - Review the **Ingestion quality** panel for missing embeddings, citation
+     metadata gaps, orphan child chunks, duplicate text, and empty chunks.
 5. Return to **Brains** or **Corpus** and confirm document/chunk counts are no
    longer zero.
 6. Go to **Test Console**.
@@ -409,7 +418,7 @@ Recommended defaults:
   - disk/storage over 80%.
   - failed backups.
 - Logs:
-  - `com.msfg.rag=INFO`
+  - `com.ragbrain.rag=INFO`
   - `org.springframework=WARN`
   - never log raw API keys, public tokens, connector tokens, or customer secrets.
 
@@ -437,6 +446,8 @@ The project is production-ready when all are true:
 - CORS uses real HTTPS origins only.
 - Dashboard is deployed behind HTTPS.
 - Documents are ingested and chunks are indexed.
+- Ingestion quality is reviewed and missing embeddings/orphan chunks are resolved
+  or explicitly accepted.
 - Public token and allowed domains are configured for each public brain.
 - Connect wizard readiness is green.
 - Retrieval and answer quality have been tested with real documents.

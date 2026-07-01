@@ -75,7 +75,7 @@ docker run --rm -p 8080:8080 \
 | Connector/MCP rate limit | `CONNECTOR_RATE_LIMIT_REQUESTS_PER_MINUTE=60` per client IP per minute |
 | Admin rate limit | `ADMIN_RATE_LIMIT_REQUESTS_PER_MINUTE=120` per client IP per minute |
 | Trusted proxy handling | `RATE_LIMIT_TRUST_FORWARDED_FOR=true` only when all traffic arrives through the proxy |
-| Logs | `com.msfg.rag=INFO`, `org.springframework=WARN`; do not log raw tokens or prompts |
+| Logs | `com.ragbrain.rag=INFO`, `org.springframework=WARN`; do not log raw tokens or prompts |
 | Alerting | alert on app down, DB down, repeated `5xx`, repeated `401/403`, high `429`, disk usage over 80%, failed backups |
 | Backups | automated daily DB backups with point-in-time recovery; keep at least 14 days before launch |
 | Token rotation | rotate admin, public, and connector tokens every 120 days; rotate immediately on staff/vendor change or suspected exposure |

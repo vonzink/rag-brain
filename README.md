@@ -79,6 +79,13 @@ Supported source types: `AGENCY_GUIDELINE`, `INTERNAL_POLICY`, `INVESTOR_OVERLAY
 
 For a registered brain, pass `?brain=<slug>` to admin document endpoints.
 
+Check ingestion quality after upload or sync:
+
+```bash
+curl -sf -H "X-Admin-Api-Key: $ADMIN_API_KEY" \
+  http://localhost:8091/api/ai/admin/ingestion-quality?brain=generic
+```
+
 ## Query Flow
 
 ```bash
@@ -180,6 +187,7 @@ question
   -> vocabulary/query rewrite preview
   -> retrieval planner
   -> child-chunk vector + keyword retrieval
+  -> bounded rewrite/gap-fill retrieval loop
   -> parent-section context assembly
   -> answer model
   -> citation/guardrail validation
@@ -191,7 +199,7 @@ question
 The dashboard supports:
 
 - Brains: create, activate, sync local/S3 source bindings.
-- Corpus: upload, edit metadata, delete, activate/deactivate, reindex, sync.
+- Corpus: upload, edit metadata, delete, activate/deactivate, reindex, sync, and review ingestion quality.
 - Vocabulary: edit retrieval synonyms.
 - Source Links: manage approved external citation/source links.
 - Page Guides: manage recommended pages and internal links.
