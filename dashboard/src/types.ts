@@ -133,6 +133,39 @@ export interface SyncResult {
 }
 export interface SyncReport { dryRun: boolean; summary: Record<string, number>; results: SyncResult[] }
 
+export interface DocumentQuality {
+  documentId: string | null;
+  title: string;
+  fileName: string;
+  active: boolean;
+  chunkCount: number;
+  embeddedChunkCount: number;
+  chunksMissingEmbeddingCount: number;
+  parentChunkCount: number;
+  childChunkCount: number;
+  orphanChildChunkCount: number;
+  emptyChunkCount: number;
+  chunksMissingCitationMetadata: number;
+  warnings: string[];
+}
+
+export interface IngestionQuality {
+  brainId: string;
+  documentCount: number;
+  activeDocumentCount: number;
+  chunkCount: number;
+  embeddedChunkCount: number;
+  chunksMissingEmbeddingCount: number;
+  parentChunkCount: number;
+  childChunkCount: number;
+  orphanChildChunkCount: number;
+  emptyChunkCount: number;
+  duplicateChunkTextGroups: number;
+  chunksMissingCitationMetadata: number;
+  documents: DocumentQuality[];
+  warnings: string[];
+}
+
 export interface SettingsResponse {
   effective: Record<string, string | number | boolean | null>;
   overrides: Record<string, string>;

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { DocumentDto, DocumentUpdate, Stats, SyncReport } from "../types";
+import { DocumentDto, DocumentUpdate, IngestionQuality, Stats, SyncReport } from "../types";
 import { ErrorNote, Pill, Stat } from "../components";
 
 export default function Corpus({ stats, onCorpusChanged }:
     { stats: Stats | null; onCorpusChanged: () => void }) {
   const [docs, setDocs] = useState<DocumentDto[]>([]);
+  const [quality, setQuality] = useState<IngestionQuality | null>(null);
   const [report, setReport] = useState<SyncReport | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,9 +97,16 @@ export default function Corpus({ stats, onCorpusChanged }:
     }
   }
 
+  const reloadQuality = useCallback(() => {
+    api.get<IngestionQuality>("/api/ai/admin/ingestion-quality")
+      .then(setQuality)
+      .catch((e) => setError(e.message));
+  }, []);
+
   const reload = useCallback(() => {
     api.get<DocumentDto[]>("/api/ai/documents").then(setDocs).catch((e) => setError(e.message));
-  }, []);
+    reloadQuality();
+  }, [reloadQuality]);
 
   useEffect(reload, [reload]);
 
@@ -189,6 +197,41 @@ export default function Corpus({ stats, onCorpusChanged }:
         <Stat label="All docs" value={stats?.corpus.totalDocuments ?? "…"} />
         <Stat label="Chunks" value={stats?.corpus.chunks.toLocaleString() ?? "…"} />
       </div>
+      {quality && (
+        <section className="card quality-panel">
+          <div className="sync-summary">
+            <strong>Ingestion quality</strong>
+            <Pill tone={quality.warnings.length === 0 ? "green" : "amber"}>
+              {quality.warnings.length === 0 ? "ready" : `${quality.warnings.length} warnings`}
+            </Pill>
+          </div>
+          <div className="quality-metrics">
+            <div>
+              <span className="stat-label">Embedded chunks</span>
+              <strong>{quality.embeddedChunkCount.toLocaleString()} / {quality.chunkCount.toLocaleString()}</strong>
+            </div>
+            <div>
+              <span className="stat-label">Parent / child</span>
+              <strong>{quality.parentChunkCount.toLocaleString()} / {quality.childChunkCount.toLocaleString()}</strong>
+            </div>
+            <div>
+              <span className="stat-label">Missing embeddings</span>
+              <strong>{quality.chunksMissingEmbeddingCount.toLocaleString()}</strong>
+            </div>
+            <div>
+              <span className="stat-label">Missing citations</span>
+              <strong>{quality.chunksMissingCitationMetadata.toLocaleString()}</strong>
+            </div>
+          </div>
+          {quality.warnings.length > 0 && (
+            <div className="chips quality-warnings">
+              {quality.warnings.map((warning) => (
+                <Pill key={warning} tone="amber">{warning}</Pill>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
       {report && (
         <div className="card sync-report">
           <div className="sync-summary">

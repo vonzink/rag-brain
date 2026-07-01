@@ -20,5 +20,5 @@ management:
 
 logging:
   level:
-    com.msfg.rag: INFO
+    com.ragbrain.rag: INFO
     org.springframework: WARN

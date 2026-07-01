@@ -1,0 +1,57 @@
+package com.ragbrain.rag.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+/**
+ * Typed configuration for everything under ragbrain.rag.* in application.yml.
+ * Keeps tuning knobs (retrieval weights, chunk sizes, thresholds) in one place.
+ */
+@ConfigurationProperties(prefix = "ragbrain.rag")
+public record RagProperties(
+        Routing routing,
+        Retrieval retrieval,
+        Chunking chunking,
+        Storage storage,
+        Admin admin,
+        RateLimit rateLimit
+) {
+
+    public record Routing(
+            String defaultProvider,
+            String fallbackProvider
+    ) {}
+
+    public record Retrieval(
+            int topK,
+            int minResults,
+            double confidenceThreshold,
+            double vectorWeight,
+            double keywordWeight,
+            boolean rerankEnabled,
+            int rerankCandidates
+    ) {}
+
+    public record Chunking(
+            int targetTokens,
+            int maxTokens,
+            int overlapTokens
+    ) {}
+
+    public record Storage(
+            String path
+    ) {}
+
+    public record Admin(
+            String apiKey
+    ) {}
+
+    public record RateLimit(
+            int requestsPerMinute,
+            int connectorRequestsPerMinute,
+            int adminRequestsPerMinute
+    ) {
+        public RateLimit(int requestsPerMinute) {
+            this(requestsPerMinute, 60, 120);
+        }
+    }
+}
