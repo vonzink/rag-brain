@@ -282,6 +282,62 @@ curl -X POST http://localhost:8091/api/connect/v1/brains/generic/ask \
   }'
 ```
 
+For an internal dashboard brain, create a connector with `dashboard:ask`,
+`dashboard:tools:list`, `dashboard:tools:read`, and, only when needed,
+`dashboard:tools:write`.
+
+List dashboard tools:
+
+```bash
+curl -sf http://localhost:8091/api/connect/v1/brains/dashboard-brain/dashboard/tools \
+  -H "Authorization: Bearer $RAG_BRAIN_CONNECTOR_TOKEN"
+```
+
+Call a read tool stub:
+
+```bash
+curl -X POST http://localhost:8091/api/connect/v1/brains/dashboard-brain/dashboard/tools/searchLoans/call \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RAG_BRAIN_CONNECTOR_TOKEN" \
+  -d '{
+    "sessionId": "dashboard-test",
+    "user": {
+      "userId": "local-user",
+      "tenantId": "local-tenant",
+      "roles": ["loan-officer"],
+      "permissions": ["dashboard.loans.read"]
+    },
+    "arguments": { "query": "Smith" },
+    "confirmed": false
+  }'
+```
+
+Ask the internal dashboard brain:
+
+```bash
+curl -X POST http://localhost:8091/api/connect/v1/brains/dashboard-brain/dashboard/ask \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RAG_BRAIN_CONNECTOR_TOKEN" \
+  -d '{
+    "sessionId": "dashboard-test",
+    "message": "What dashboard items need attention?",
+    "pageRoute": "/dashboard",
+    "visibility": "INTERNAL",
+    "user": {
+      "userId": "local-user",
+      "tenantId": "local-tenant",
+      "roles": ["loan-officer"],
+      "permissions": ["dashboard.loans.read","dashboard.tasks.read"]
+    },
+    "facts": { "current_module": "dashboard" }
+  }'
+```
+
+Live dashboard API execution is intentionally stubbed in rag-brain until the host
+dashboard adapter is wired. Write tools return `CONFIRMATION_REQUIRED` unless
+the request includes `"confirmed": true`, and confirmed writes return `STUBBED`
+until the external dashboard API performs the mutation.
+
 ## Full Verification Commands
 
 Run before pushing changes:

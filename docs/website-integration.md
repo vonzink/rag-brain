@@ -145,6 +145,22 @@ and peer `rag-brain` instances. They call `/.well-known/rag-brain.json`,
 **Connectors** screen. Connector tokens are also shown once and stored only as
 hashes.
 
+Internal dashboard assistants should use connector tokens only from the
+dashboard backend. The browser sends the user's chat message to the dashboard
+backend; the dashboard backend adds authenticated user context and calls
+`/api/connect/v1/brains/{slug}/dashboard/**`. Use public tokens only for public
+website widgets.
+
+Internal dashboard MCP-style tool names:
+
+- `rag_brain_dashboard_tools`
+- `rag_brain_dashboard_tool_call`
+- `rag_brain_dashboard_ask`
+
+The first dashboard-tool implementation is a stub contract. Read tools and
+confirmed write tools return `STUBBED` until a dashboard API adapter is connected.
+Unconfirmed write tools return `CONFIRMATION_REQUIRED`.
+
 ---
 
 ## 2. Conversation history (optional)

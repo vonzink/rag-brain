@@ -44,6 +44,27 @@ class AdminConnectorControllerTest {
     }
 
     @Test
+    void createInternalDashboardConnectorAcceptsDashboardScopes() {
+        when(clients.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        ConnectorClientRequest req = new ConnectorClientRequest(
+                "Dashboard Brain", "INTERNAL_APP", TestBrains.DEFAULT_ID,
+                List.of(
+                        ConnectorScope.DASHBOARD_ASK,
+                        ConnectorScope.DASHBOARD_TOOLS_LIST,
+                        ConnectorScope.DASHBOARD_TOOLS_READ,
+                        ConnectorScope.DASHBOARD_TOOLS_WRITE),
+                List.of("https://dashboard.example.com"),
+                List.of("dashboard.example.com"),
+                true);
+
+        var dto = controller.create(req);
+
+        assertEquals("Dashboard Brain", dto.name());
+        assertEquals("INTERNAL_APP", dto.type());
+        assertEquals(req.scopes(), dto.scopes());
+    }
+
+    @Test
     void createRejectsMissingRequestBody() {
         var ex = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
                 () -> controller.create(null));

@@ -175,8 +175,58 @@ The MCP surface is a lightweight HTTP facade for tool-style callers:
 - `POST /mcp/tools/rag_brain_readiness`
 - `POST /mcp/tools/rag_brain_ask`
 - `POST /mcp/tools/rag_brain_retrieve`
+- `POST /mcp/tools/rag_brain_dashboard_tools`
+- `POST /mcp/tools/rag_brain_dashboard_tool_call`
+- `POST /mcp/tools/rag_brain_dashboard_ask`
 
 Federation endpoints under `/api/connect/v1` let another `rag-brain` discover active brains, inspect readiness, ask public-safe questions, and retrieve public evidence chunks. Connector calls never expose admin settings, private source paths, token hashes, trace internals, or non-public source content.
+
+## Internal Dashboard Brain
+
+This does not create or assume a separate dashboard application inside this
+repo. It adds reusable internal-app/live-tool capability to `rag-brain` so a
+future clone such as `dashboard-brain`, `dashboard-main`, or another secure
+site-specific brain can use the same pattern.
+
+For an internal dashboard assistant, create a separate brain slug such as
+`dashboard-brain` and use connector tokens from that site's backend only.
+Browser clients should not receive connector tokens.
+
+Grant only the scopes the dashboard integration needs:
+
+- `dashboard:ask`
+- `dashboard:tools:list`
+- `dashboard:tools:read`
+- `dashboard:tools:write`
+
+Internal endpoints:
+
+```bash
+curl http://localhost:8091/api/connect/v1/brains/dashboard-brain/dashboard/tools \
+  -H "Authorization: Bearer $RAG_BRAIN_CONNECTOR_TOKEN"
+```
+
+```bash
+curl -X POST http://localhost:8091/api/connect/v1/brains/dashboard-brain/dashboard/tools/searchLoans/call \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RAG_BRAIN_CONNECTOR_TOKEN" \
+  -d '{
+    "sessionId": "dashboard-session",
+    "user": {
+      "userId": "user-1",
+      "tenantId": "tenant-1",
+      "roles": ["loan-officer"],
+      "permissions": ["dashboard.loans.read"]
+    },
+    "arguments": { "query": "Smith" },
+    "confirmed": false
+  }'
+```
+
+Read and write tools currently return stable stub responses until a real
+dashboard API adapter is wired. Write tools are confirmation-gated: an
+unconfirmed write call returns `CONFIRMATION_REQUIRED`; a confirmed write call
+still returns `STUBBED` until the host dashboard adapter executes it.
 
 Pipeline:
 
