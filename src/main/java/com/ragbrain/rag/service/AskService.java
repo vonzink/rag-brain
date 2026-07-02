@@ -1,6 +1,5 @@
 package com.ragbrain.rag.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragbrain.rag.domain.AnswerSource;
 import com.ragbrain.rag.pack.DomainPack;
 import com.ragbrain.rag.pack.DomainPackRegistry;
@@ -23,6 +22,9 @@ import com.ragbrain.rag.service.ai.OutputContractService;
 import com.ragbrain.rag.service.ai.PromptBuilderService;
 import com.ragbrain.rag.service.ai.QuestionCategory;
 import com.ragbrain.rag.service.ai.QuestionClassifierService;
+import com.ragbrain.rag.service.answer.AnswerCitationService;
+import com.ragbrain.rag.service.answer.ModelAnswerParser;
+import com.ragbrain.rag.service.answer.PromptQuestionContextService;
 import com.ragbrain.rag.service.audit.AuditLogService;
 import com.ragbrain.rag.service.audit.RagTraceService;
 import com.ragbrain.rag.service.clarification.ClarificationDecision;
@@ -37,12 +39,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -68,10 +67,12 @@ public class AskService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final AnswerSourceRepository answerSourceRepository;
-    private final ObjectMapper objectMapper;
     private final OutputContractService outputContractService;
     private final RagTraceService ragTraceService;
     private final AgenticRetrievalService agenticRetrievalService;
+    private final ModelAnswerParser modelAnswerParser;
+    private final PromptQuestionContextService promptQuestionContextService;
+    private final AnswerCitationService answerCitationService;
 
     public AskService(DomainPackRegistry packRegistry,
                       QuestionClassifierService questionClassifierService,
@@ -82,10 +83,12 @@ public class AskService {
                       ConversationRepository conversationRepository,
                       MessageRepository messageRepository,
                       AnswerSourceRepository answerSourceRepository,
-                      ObjectMapper objectMapper,
                       OutputContractService outputContractService,
                       RagTraceService ragTraceService,
-                      AgenticRetrievalService agenticRetrievalService) {
+                      AgenticRetrievalService agenticRetrievalService,
+                      ModelAnswerParser modelAnswerParser,
+                      PromptQuestionContextService promptQuestionContextService,
+                      AnswerCitationService answerCitationService) {
         this.packRegistry = packRegistry;
         this.questionClassifierService = questionClassifierService;
         this.promptBuilderService = promptBuilderService;
@@ -95,10 +98,12 @@ public class AskService {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.answerSourceRepository = answerSourceRepository;
-        this.objectMapper = objectMapper;
         this.outputContractService = outputContractService;
         this.ragTraceService = ragTraceService;
         this.agenticRetrievalService = agenticRetrievalService;
+        this.modelAnswerParser = modelAnswerParser;
+        this.promptQuestionContextService = promptQuestionContextService;
+        this.answerCitationService = answerCitationService;
     }
 
     public AskResponse ask(AskRequest request, UUID brainId) {
@@ -176,7 +181,7 @@ public class AskService {
         // public clarification turn) so the answer reflects the visitor's stated
         // context. Facts shape the prompt only; retrieval still uses the raw
         // question, and the model is told these are context, not source truth.
-        String promptQuestion = appendFacts(request.question(), request.facts());
+        String promptQuestion = promptQuestionContextService.appendFacts(request.question(), request.facts());
         String prompt = promptBuilderService.build(promptQuestion, retrieval.chunks(), brainId, sideEvidence);
         ModelRouterService.RoutedResponse routed;
         try {
@@ -192,7 +197,7 @@ public class AskService {
         }
 
         // 4. Parse the model's JSON answer.
-        ModelAnswer modelAnswer = parseModelAnswer(routed.response().content());
+        ModelAnswer modelAnswer = modelAnswerParser.parse(routed.response().content());
         if (modelAnswer == null) {
             return refuse(conversation, request, brainId, retrieval, canned.escalation(), prompt,
                     "unparseable model response", rewrittenQuestion, intent, plan, sideEvidence, visibility);
@@ -225,13 +230,14 @@ public class AskService {
         //     blocks it was given (their source/document names are exactly what
         //     we put in the prompt), so a citation to anything else is fabricated
         //     and must not be shown.
-        List<CitationDto> verifiedCitations = filterToRetrieved(modelAnswer.citations(), retrieval.chunks());
+        List<CitationDto> verifiedCitations =
+                answerCitationService.filterToRetrieved(modelAnswer.citations(), retrieval.chunks());
         int suppliedCitations = modelAnswer.citations() == null ? 0 : modelAnswer.citations().size();
         if (suppliedCitations > verifiedCitations.size()) {
             log.warn("Dropped {} model citation(s) not matching any retrieved source",
                     suppliedCitations - verifiedCitations.size());
         }
-        modelAnswer = withCitations(modelAnswer, verifiedCitations);
+        modelAnswer = answerCitationService.withCitations(modelAnswer, verifiedCitations);
 
         // 4d. Salvage grounded answers that end up citation-less (model omitted
         //     citations, or all of them were fabricated and filtered out). Attach
@@ -243,7 +249,7 @@ public class AskService {
             log.info("Model answer had no verifiable citations; attaching {} retrieved source(s)",
                     retrieval.chunks().size());
         }
-        modelAnswer = ensureCitations(modelAnswer, retrieval.chunks());
+        modelAnswer = answerCitationService.ensureCitations(modelAnswer, retrieval.chunks());
 
         // 5. Final compliance backstop (incl. citation presence) — failed answers
         //     are never shown.
@@ -401,153 +407,4 @@ public class AskService {
         }
     }
 
-    /**
-     * Keeps only the model citations that correspond to a retrieved source,
-     * matched by document name or source name (case-insensitive). Anything else
-     * was not in the prompt context and is therefore fabricated.
-     */
-    static List<CitationDto> filterToRetrieved(List<CitationDto> citations, List<RetrievedChunk> chunks) {
-        if (citations == null || citations.isEmpty()) {
-            return List.of();
-        }
-        Set<String> documentNames = new HashSet<>();
-        Set<String> sourceNames = new HashSet<>();
-        for (RetrievedChunk chunk : chunks) {
-            if (chunk.documentName() != null) {
-                documentNames.add(normalizeName(chunk.documentName()));
-            }
-            if (chunk.sourceName() != null) {
-                sourceNames.add(normalizeName(chunk.sourceName()));
-            }
-        }
-        return citations.stream()
-                .filter(citation -> matchesRetrieved(citation, documentNames, sourceNames))
-                .toList();
-    }
-
-    private static boolean matchesRetrieved(CitationDto citation,
-                                            Set<String> documentNames, Set<String> sourceNames) {
-        if (citation == null) {
-            return false;
-        }
-        boolean docMatch = citation.documentName() != null
-                && documentNames.contains(normalizeName(citation.documentName()));
-        boolean sourceMatch = citation.sourceName() != null
-                && sourceNames.contains(normalizeName(citation.sourceName()));
-        return docMatch || sourceMatch;
-    }
-
-    private static String normalizeName(String value) {
-        return value.strip().toLowerCase(java.util.Locale.ROOT);
-    }
-
-    /**
-     * Appends user-provided facts to the prompt question as labelled context.
-     * Returns the question unchanged when there are no usable facts, so the
-     * default (no-facts) path is byte-for-byte identical to before.
-     */
-    static String appendFacts(String question, Map<String, String> facts) {
-        Map<String, String> safe = sanitizeFacts(facts);
-        if (safe.isEmpty()) {
-            return question;
-        }
-        StringBuilder sb = new StringBuilder(question);
-        sb.append("\n\nDetails the user already provided (treat as the user's stated"
-                + " context, not as source-of-truth facts; still ground every claim in"
-                + " the approved sources above):");
-        safe.forEach((k, v) -> sb.append("\n- ").append(k).append(": ").append(v));
-        return sb.toString();
-    }
-
-    /**
-     * Trims, de-blanks, length-caps (key 60 / value 200 chars), strips newlines,
-     * and limits to 10 entries so a hostile or oversized facts map cannot bloat
-     * or restructure the prompt.
-     */
-    private static Map<String, String> sanitizeFacts(Map<String, String> facts) {
-        if (facts == null || facts.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, String> out = new LinkedHashMap<>();
-        for (Map.Entry<String, String> e : facts.entrySet()) {
-            if (out.size() >= 10) {
-                break;
-            }
-            String key = e.getKey() == null ? null : e.getKey().strip();
-            String value = e.getValue() == null ? null : e.getValue().strip();
-            if (key == null || key.isEmpty() || value == null || value.isEmpty()) {
-                continue;
-            }
-            key = key.replaceAll("[\\r\\n]+", " ");
-            value = value.replaceAll("[\\r\\n]+", " ");
-            if (key.length() > 60) {
-                key = key.substring(0, 60);
-            }
-            if (value.length() > 200) {
-                value = value.substring(0, 200);
-            }
-            out.put(key, value);
-        }
-        return out;
-    }
-
-    private static ModelAnswer withCitations(ModelAnswer answer, List<CitationDto> citations) {
-        return new ModelAnswer(
-                answer.answer(),
-                citations,
-                answer.confidence(),
-                answer.humanEscalationRequired(),
-                answer.disclaimer());
-    }
-
-    /**
-     * When the model returns a grounded answer but omits citations, attach the
-     * retrieved approved sources so a correct answer is not discarded and
-     * escalated. Model-supplied citations are kept as-is.
-     */
-    static ModelAnswer ensureCitations(ModelAnswer answer, List<RetrievedChunk> chunks) {
-        if (answer.citations() != null && !answer.citations().isEmpty()) {
-            return answer;
-        }
-        return new ModelAnswer(
-                answer.answer(),
-                citationsFromChunks(chunks),
-                answer.confidence(),
-                answer.humanEscalationRequired(),
-                answer.disclaimer());
-    }
-
-    /** Maps retrieved source chunks to the citation shape returned to the website. */
-    static List<CitationDto> citationsFromChunks(List<RetrievedChunk> chunks) {
-        return chunks.stream()
-                .map(chunk -> new CitationDto(
-                        chunk.sourceName(),
-                        chunk.documentName(),
-                        chunk.section(),
-                        chunk.pageNumber() == null ? null : String.valueOf(chunk.pageNumber()),
-                        chunk.effectiveDate() == null ? null : chunk.effectiveDate().toString()))
-                .toList();
-    }
-
-    /**
-     * Models sometimes wrap JSON in markdown fences or add prose around it;
-     * extract the outermost JSON object before parsing.
-     */
-    private ModelAnswer parseModelAnswer(String content) {
-        if (content == null || content.isBlank()) {
-            return null;
-        }
-        String json = content.strip();
-        int start = json.indexOf('{');
-        int end = json.lastIndexOf('}');
-        if (start < 0 || end <= start) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(json.substring(start, end + 1), ModelAnswer.class);
-        } catch (Exception e) {
-            log.error("Failed to parse model answer JSON: {}", e.getMessage());
-            return null;
-        }
-    }
 }

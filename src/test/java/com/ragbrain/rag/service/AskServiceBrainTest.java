@@ -17,6 +17,9 @@ import com.ragbrain.rag.service.ai.OutputContractService;
 import com.ragbrain.rag.service.ai.PromptBuilderService;
 import com.ragbrain.rag.service.ai.QuestionCategory;
 import com.ragbrain.rag.service.ai.QuestionClassifierService;
+import com.ragbrain.rag.service.answer.AnswerCitationService;
+import com.ragbrain.rag.service.answer.ModelAnswerParser;
+import com.ragbrain.rag.service.answer.PromptQuestionContextService;
 import com.ragbrain.rag.service.audit.AuditLogService;
 import com.ragbrain.rag.service.audit.RagTraceService;
 import com.ragbrain.rag.service.retrieval.AgenticRetrievalService;
@@ -99,9 +102,11 @@ class AskServiceBrainTest {
                 BRAIN_A, TestPacks.msfg(), BRAIN_B, TestPacks.msfg()));
         return new AskService(registry, classifier, promptBuilder, router,
                 new AnswerValidationService(registry), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                new AgenticRetrievalService(intentRouter, planner, vocabulary, retrieval));
+                new AgenticRetrievalService(intentRouter, planner, vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
     }
 
     private AskRequest request(UUID conversationId) {

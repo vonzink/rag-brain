@@ -21,6 +21,9 @@ import com.ragbrain.rag.service.ai.OutputContractService;
 import com.ragbrain.rag.service.ai.PromptBuilderService;
 import com.ragbrain.rag.service.ai.QuestionCategory;
 import com.ragbrain.rag.service.ai.QuestionClassifierService;
+import com.ragbrain.rag.service.answer.AnswerCitationService;
+import com.ragbrain.rag.service.answer.ModelAnswerParser;
+import com.ragbrain.rag.service.answer.PromptQuestionContextService;
 import com.ragbrain.rag.service.audit.AuditLogService;
 import com.ragbrain.rag.service.audit.RagTraceService;
 import com.ragbrain.rag.service.clarification.ClarificationDecision;
@@ -77,6 +80,8 @@ import static org.mockito.Mockito.when;
  */
 class AskServiceTest {
 
+    private final AnswerCitationService citationService = new AnswerCitationService();
+
     private RetrievedChunk chunk(String sourceName, String documentName,
                                  String section, Integer pageNumber, LocalDate effectiveDate) {
         return new RetrievedChunk(
@@ -126,9 +131,11 @@ class AskServiceTest {
 
         return new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
     }
 
     /** Builds an AskService that classifies every question as {@code category}. */
@@ -163,9 +170,11 @@ class AskServiceTest {
 
         return new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
     }
 
     private record RetrievalPlannerServiceMocks(
@@ -313,9 +322,11 @@ class AskServiceTest {
 
         AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
 
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.INTERNAL);
 
@@ -377,9 +388,11 @@ class AskServiceTest {
 
         AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
 
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.INTERNAL);
 
@@ -419,9 +432,11 @@ class AskServiceTest {
 
         AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
 
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.INTERNAL);
 
@@ -486,9 +501,11 @@ class AskServiceTest {
 
         AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
 
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
 
@@ -542,9 +559,11 @@ class AskServiceTest {
 
         AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                agentic(intentRouter, planner, vocabulary, retrieval));
+                agentic(intentRouter, planner, vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
 
         service.ask(pmiQuestion(), TestBrains.DEFAULT_ID, SourceVisibility.PUBLIC);
 
@@ -604,9 +623,11 @@ class AskServiceTest {
 
         AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                agentic(intentRouter, planner, vocabulary, retrieval));
+                agentic(intentRouter, planner, vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
 
         AskResponse response = service.ask(
                 new AskRequest(null, "session-1", "PMI", null, null, "/learn", "PUBLIC"),
@@ -620,7 +641,7 @@ class AskServiceTest {
 
     @Test
     void citationsFromChunksMapsAllFields() {
-        List<CitationDto> citations = AskService.citationsFromChunks(List.of(
+        List<CitationDto> citations = citationService.citationsFromChunks(List.of(
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf",
                         "B3-3.1-01", 12, LocalDate.of(2026, 1, 1))));
 
@@ -635,7 +656,7 @@ class AskServiceTest {
 
     @Test
     void citationsFromChunksLeavesMissingMetadataNull() {
-        CitationDto c = AskService.citationsFromChunks(List.of(
+        CitationDto c = citationService.citationsFromChunks(List.of(
                 chunk("FHA Handbook", "4000.1.pdf", null, null, null))).get(0);
 
         assertEquals("FHA Handbook", c.sourceName());
@@ -646,7 +667,7 @@ class AskServiceTest {
 
     @Test
     void citationsFromChunksMapsEveryChunk() {
-        List<CitationDto> citations = AskService.citationsFromChunks(List.of(
+        List<CitationDto> citations = citationService.citationsFromChunks(List.of(
                 chunk("S1", "d1.pdf", "sec1", 1, LocalDate.of(2026, 1, 1)),
                 chunk("S2", "d2.pdf", "sec2", 2, LocalDate.of(2026, 2, 1)),
                 chunk("S3", "d3.pdf", "sec3", 3, LocalDate.of(2026, 3, 1))));
@@ -658,7 +679,7 @@ class AskServiceTest {
     void ensureCitationsBackfillsWhenModelReturnsNull() {
         ModelAnswer answer = new ModelAnswer("PMI is mortgage insurance.", null, 0.85, false, "d");
 
-        ModelAnswer result = AskService.ensureCitations(answer, List.of(
+        ModelAnswer result = citationService.ensureCitations(answer, List.of(
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf",
                         "B3-3.1-01", 12, LocalDate.of(2026, 1, 1))));
 
@@ -673,7 +694,7 @@ class AskServiceTest {
     void ensureCitationsBackfillsWhenModelReturnsEmptyList() {
         ModelAnswer answer = new ModelAnswer("PMI is mortgage insurance.", List.of(), 0.85, false, "d");
 
-        ModelAnswer result = AskService.ensureCitations(answer, List.of(
+        ModelAnswer result = citationService.ensureCitations(answer, List.of(
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf",
                         "B3-3.1-01", 12, LocalDate.of(2026, 1, 1))));
 
@@ -684,7 +705,7 @@ class AskServiceTest {
     void filterToRetrievedKeepsCitationsMatchingADocumentName() {
         List<CitationDto> model = List.of(
                 new CitationDto("Some label", "selling-guide.pdf", "B7", "1", null));
-        List<CitationDto> kept = AskService.filterToRetrieved(model, List.of(
+        List<CitationDto> kept = citationService.filterToRetrieved(model, List.of(
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1))));
         assertEquals(1, kept.size());
     }
@@ -693,7 +714,7 @@ class AskServiceTest {
     void filterToRetrievedMatchesBySourceNameCaseInsensitively() {
         List<CitationDto> model = List.of(
                 new CitationDto("fannie mae selling guide", "renamed.pdf", null, null, null));
-        List<CitationDto> kept = AskService.filterToRetrieved(model, List.of(
+        List<CitationDto> kept = citationService.filterToRetrieved(model, List.of(
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1))));
         assertEquals(1, kept.size());
     }
@@ -702,7 +723,7 @@ class AskServiceTest {
     void filterToRetrievedDropsFabricatedCitations() {
         List<CitationDto> model = List.of(
                 new CitationDto("Totally Made Up", "ghost.pdf", "Z", "9", null));
-        List<CitationDto> kept = AskService.filterToRetrieved(model, List.of(
+        List<CitationDto> kept = citationService.filterToRetrieved(model, List.of(
                 chunk("Fannie Mae Selling Guide", "selling-guide.pdf", "B7-1", 1, LocalDate.of(2026, 1, 1))));
         assertTrue(kept.isEmpty());
     }
@@ -753,7 +774,7 @@ class AskServiceTest {
                 new CitationDto("Model Cited Source", "model.pdf", "sec", "5", "2026-01-01"));
         ModelAnswer answer = new ModelAnswer("PMI is mortgage insurance.", modelCitations, 0.85, false, "d");
 
-        ModelAnswer result = AskService.ensureCitations(answer, List.of(
+        ModelAnswer result = citationService.ensureCitations(answer, List.of(
                 chunk("Retrieved Source", "retrieved.pdf", "other", 99, LocalDate.of(2026, 1, 1))));
 
         // The model cited its own sources; do not overwrite them with the chunks.
@@ -790,9 +811,11 @@ class AskServiceTest {
 
         AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
 
         AskResponse response = service.ask(
                 new AskRequest(null, "session-1", "Calculate my monthly payment", null, null),
@@ -849,9 +872,11 @@ class AskServiceTest {
 
         AskService service = new AskService(TestPacks.registry(), classifier, promptBuilder, router,
                 new AnswerValidationService(TestPacks.registry()), audit,
-                conversations, messages, sources, new ObjectMapper(),
+                conversations, messages, sources,
                 new OutputContractService(), trace,
-                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval));
+                agentic(intentRouter, plannerMocks.planner(), vocabulary, retrieval),
+                new ModelAnswerParser(new ObjectMapper()),
+                new PromptQuestionContextService(), new AnswerCitationService());
 
         AskRequest request = new AskRequest(null, "session-1", "What is PMI?", null, null,
                 null, null, Map.of("loan_type", "FHA"));
